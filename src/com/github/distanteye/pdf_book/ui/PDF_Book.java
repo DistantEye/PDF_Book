@@ -24,6 +24,7 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 
 import javax.swing.AbstractAction;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -59,6 +60,8 @@ import com.github.distanteye.pdf_book.spe_validators.*;
  *
  */
 public class PDF_Book implements UI {
+	private ImageRenderer renderer;
+	
 	private JMenuBar menuBar;
 	private JMenu fileMenu, settingsMenu;
 	private JMenuItem save, load, changeDefault, openPDF;
@@ -86,6 +89,16 @@ public class PDF_Book implements UI {
 	 * @throws HeadlessException
 	 */
 	public PDF_Book() throws HeadlessException {
+
+		if (SimpleMuToolRenderer.IsAvailible())
+		{
+			renderer = new SimpleMuToolRenderer();
+		}
+		else
+		{
+			renderer = new PdfBoxRenderer(new ByteArrayDataManager());
+		}
+		
 		tabs = new ArrayList<Tab>();
 		selectedTab = -1; // unselected
 
@@ -130,7 +143,7 @@ public class PDF_Book implements UI {
 		leftScroll = new JScrollPane(leftPanel);
 		leftScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		leftScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-		leftScroll.setPreferredSize(new Dimension(200, 850));
+		leftScroll.setPreferredSize(new Dimension(200, 750));
 		
 		// enable drag scrolling
 		MouseAdapter leftPanelMouseAdapter = new PanelMouseScroll(leftPanel);
@@ -238,48 +251,49 @@ public class PDF_Book implements UI {
 	}
 	
 	/**
-	 * Creates (or recreates) the Controls section of the UI, returning the new y
+	 * Creates (or refreshes) the Controls section of the UI, returning the new y
 	 * offset based on the number of rows used. Should not be called until a Tab is active and selected
 	 * 
 	 * @param parent
 	 *            The Panel that will contain the Controls Section this is creating
-	 * @param y
-	 *            The current y offset of Parent to start adding things at
-	 * @return Returns the new y offset based on the original y plus the number
-	 *         of rows used by this method
 	 */
-	protected int renderControlBar(GBagPanel parent, int y) {
+	protected void renderControlBar(GBagPanel parent) {
+		parent.removeAll();
+		
 		if (selectedTab < 0 || selectedTab >= tabs.size() )
 		{
-			throw new IllegalArgumentException("Can't render control bar without an active tab");
+			parent.revalidate();
+			parent.repaint();
+			return; // don't render if there isn't a selected tab
 		}
 		EditState nf = EditState.NOTFIXED;
-		parent.removeAll();
+		
 		
 		Tab activeTab = tabs.get(selectedTab);
 		
 		int pageNum = activeTab.getCurrentPage();
 		int maxPages = activeTab.getMaxPages();
 		
-		parent.addLabel(1, 0, "Page ("+pageNum+"/"+maxPages+")");
-		JTextField pageNumF = parent.addMappedTF(nf, 1, y, "", "currTabPageNum", 4, ""+pageNum, null, this, new TabPageNumWrapper(activeTab));
-		pageNumF.setInputVerifier(new NumericValidator());
-		parent.addButton(0, y, "<").addActionListener(new ButtonNudgeListener(pageNumF, -1));
-		parent.addButton(2, y, ">").addActionListener(new ButtonNudgeListener(pageNumF, 1));
+		// put a header for the thing selected
+		parent.setNextGridWidth(5);
+		parent.addLabel(0, 0, "-> " + activeTab.getDisplayName());
 		
-		parent.addLabel(4, 0, "DPI");
-		JTextField dpiF = parent.addMappedTF(nf, 4, y, "", "currTabDPI", 4, ""+activeTab.getDpi(), null, this, new TabDpiWrapper(activeTab));
+		parent.addLabel(1, 1, "Page ("+pageNum+"/"+maxPages+")");
+		JTextField pageNumF = parent.addMappedTF(nf, 1, 2, "", "currTabPageNum", 4, ""+pageNum, null, this, new TabPageNumWrapper(activeTab));
+		pageNumF.setInputVerifier(new NumericValidator());
+		parent.addButton(0, 2, "<").addActionListener(new ButtonNudgeListener(pageNumF, -1));
+		parent.addButton(2, 2, ">").addActionListener(new ButtonNudgeListener(pageNumF, 1));
+		
+		parent.addLabel(4, 1, "DPI");
+		JTextField dpiF = parent.addMappedTF(nf, 4, 2, "", "currTabDPI", 4, ""+activeTab.getDpi(), null, this, new TabDpiWrapper(activeTab));
 		dpiF.setInputVerifier(new NumericValidator());
-		parent.addButton(3, y, "<").addActionListener(new ButtonNudgeListener(dpiF, -8));
-		parent.addButton(5, y, ">").addActionListener(new ButtonNudgeListener(dpiF, 8));
+		parent.addButton(3, 2, "<").addActionListener(new ButtonNudgeListener(dpiF, -8));
+		parent.addButton(5, 2, ">").addActionListener(new ButtonNudgeListener(dpiF, 8));
 
 		//parent.endVertical(0, y);
 
 		parent.revalidate();
 		parent.repaint();
-			
-
-		return y+1;
 	}
 
 	/**
@@ -331,7 +345,7 @@ public class PDF_Book implements UI {
 
 		}
 		
-		outputBox.repaint();
+		outputBox.repaint();					
 
 		return y;
 	}
@@ -347,17 +361,20 @@ public class PDF_Book implements UI {
 	 *            The current y offset of Parent to start adding things at
 	 * @param tab
 	 *            The linked Tab object to use
-	 * @param poiIndex
+	 * @param tabIndex
 	 *            The current row number, starting at 0
 	 * @return Returns the new y offset based on the original y plus the number
 	 *         of rows used by this method
 	 */
-	protected int addTabRow(GBagPanel parent, int y, Tab tab, int poiIndex) {
+	protected int addTabRow(GBagPanel parent, int y, Tab tab, int tabIndex) {
 		int x = 0;
-
+				
 		parent.addButton(x++, y, tab.getDisplayName()).addActionListener(new TabSwitchAction(tabs.indexOf(tab)));
-		parent.addButton(x++, y, "##X").addActionListener(new TabRemoveListener(parent, poiIndex, leftScroll));
+		
+		parent.addButton(x++, y, "##X").addActionListener(new TabRemoveListener(parent, tabIndex, leftScroll));
+		
 		parent.addButton(x++, y, "##Save").addActionListener(new TabRenameListener(tab, parent, leftScroll));
+		
 		//parent.endRow(x, y);
 		
 		return y + 1;
@@ -366,7 +383,7 @@ public class PDF_Book implements UI {
 	/**
 	 * @param args
 	 */
-	public static void main(String[] args) {
+	public static void main(String[] args) {		
 		javax.swing.SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				@SuppressWarnings("unused")
@@ -378,27 +395,9 @@ public class PDF_Book implements UI {
 
 	/**
 	 * Updates all relevant display fields for the character.
-	 * 
-	 * Note update should respect updateEnabled, and not act if
-	 * updateEnabled=false
 	 */
 	public void update() {
 		mainPanel.updateAllComps(true);
-	}
-
-	/**
-	 * Tells the UI to refresh all components, pulling new values from the
-	 * backend for everything. Typically called when the underlying character
-	 * has had a massive change.
-	 */
-	public void refreshAll() {
-		updateEnabled = false; // we don't want to trigger any updates during
-								// this rebuild phase, and listeners CAN trigger
-
-		mainPanel.refreshAllComps(true);
-
-		updateEnabled = true;
-		update();
 	}
 
 	@Override
@@ -440,10 +439,18 @@ public class PDF_Book implements UI {
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			tabs.remove(tabIdx);
+			Tab t = tabs.remove(tabIdx);
+			
+			t.onLeaving();
+						
+			if (selectedTab == tabIdx)
+			{
+				selectedTab--; // if we're deleting the tab currently in view, fall back to the previous one
+			}			
 
-			renderTabBar(parent, 0, scroll);
-			refreshAll();
+			renderTabBar(parent, 0, scroll);	
+			renderControlBar(controlPanel);
+			update();
 		}
 
 	}
@@ -500,13 +507,14 @@ public class PDF_Book implements UI {
 				String filePath = chooser.getSelectedFile().getAbsolutePath();
 				
 				try {
-					tabs.add(new Tab(filePath, filePath, 0, defaultDPI));
+					tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
 				} catch (InvalidPasswordException e1) {
 					handleError(e1.getMessage());
 				} catch (IOException e1) {
 					handleError(e1.getMessage());
 				}
 				renderTabBar(parent, 0, scroll);
+				switchTab(tabs.size()-1);
 			}				
 		}
 
@@ -541,7 +549,7 @@ public class PDF_Book implements UI {
 	public void switchTab(int idx)
 	{
 		try {
-			if (tabs.size() > idx && idx >= 0) {
+			if (idx < tabs.size() && idx >= 0) {
 				if (selectedTab < 0 || selectedTab >= tabs.size()) {
 					selectedTab = 0;
 				}
@@ -549,14 +557,7 @@ public class PDF_Book implements UI {
 				int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
 				int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
 				tabs.get(selectedTab).setScrollPositionX(oldScrollX);
-				tabs.get(selectedTab).setScrollPositionY(oldScrollY);			
-				
-				try {
-					tabs.get(selectedTab).onLeaving();
-				} catch (IOException e) {
-					handleError(e.getMessage());
-					return;
-				}
+				tabs.get(selectedTab).setScrollPositionY(oldScrollY);										
 				
 				CardLayout cLayout = (CardLayout) outputBox.getLayout();
 				cLayout.show(outputBox, ""+idx);
@@ -568,7 +569,7 @@ public class PDF_Book implements UI {
 				mainScroll.getHorizontalScrollBar().setValue(scrollX);
 				mainScroll.getVerticalScrollBar().setValue(scrollY);
 				
-				renderControlBar(controlPanel, 1);
+				renderControlBar(controlPanel);
 				
 				outputBox.revalidate();
 				outputBox.repaint();
@@ -731,7 +732,7 @@ public class PDF_Book implements UI {
 				
 				
 				try {
-					Tab t = new Tab(displayName, filePath, page, dpi);
+					Tab t = new Tab(displayName, filePath, page, dpi, renderer);
 					t.setScrollPositionX(scrollX);
 					t.setScrollPositionY(scrollY);
 					this.tabs.add(t);
@@ -744,7 +745,7 @@ public class PDF_Book implements UI {
 		}
 
 		renderTabBar(leftPanel, 0, leftScroll);
-		this.refreshAll();
+		this.update();
 
 	}
 

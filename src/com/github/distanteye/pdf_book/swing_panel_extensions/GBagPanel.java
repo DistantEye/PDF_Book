@@ -26,14 +26,53 @@ import com.github.distanteye.pdf_book.spe_wrappers.MappedComponent.DataFlow;
  * @author Vigilant
  */
 @SuppressWarnings("serial")
-public class GBagPanel extends ExtJPanel {			
+public class GBagPanel extends ExtJPanel {		
+	
+	protected int oldWidth, oldHeight; // for storing when temporarily setting a new weight 
+	protected boolean differentGridDimensions;
 	
 	/**
 	 * Creates a new UIPanel with a double buffer and a flow layout.
 	 */
 	public GBagPanel() {
 		super(new GridBagLayout());
+		
+		differentGridDimensions = false;
+		
 		init();
+	}
+	
+	protected void resetTemporaryConstraints()
+	{
+		super.resetTemporaryConstraints();
+		
+		if (differentGridDimensions)
+		{
+			cons.gridwidth = oldWidth;
+			cons.gridheight = oldHeight;
+			this.differentGridDimensions = false;
+		}
+	}
+	
+	public GBagPanel setNextGridDimensions(int x, int y)
+	{
+		oldWidth = cons.gridwidth;
+		oldHeight = cons.gridheight;
+		cons.gridwidth = x;
+		cons.gridheight = y;
+		this.differentGridDimensions = true;
+		
+		return this;
+	}
+	
+	public GBagPanel setNextGridWidth(int x)
+	{
+		return setNextGridDimensions(x, cons.gridheight);
+	}
+	
+	public GBagPanel setNextGridHeight(int y)
+	{
+		return setNextGridDimensions(cons.gridwidth, y);
 	}
 
 	/**

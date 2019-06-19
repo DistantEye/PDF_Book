@@ -1,17 +1,13 @@
 package com.github.distanteye.pdf_book.ui;
 
-import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 
 import javax.swing.JPanel;
 
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
-import org.apache.pdfbox.rendering.ImageType;
-import org.apache.pdfbox.rendering.PDFRenderer;
+
+
 
 /**
  * Main model representing the UI data for each Tab open in the system, as well as managing the retrieval and display of the current Tab's open PDF page
@@ -25,35 +21,34 @@ public class Tab extends JPanel {
 	private static final long serialVersionUID = -1549012741303631233L;
 	
 	private Sheet sheet;
+	
+	private ImageRenderer renderer;
+	
 	private String displayName;
 	private int scrollPositionX;
 	private int scrollPositionY;
-	private PDDocument document;
-	private boolean isOpen;
 	
 	private BufferedImage currentLoadedImage;
 	
-	private int maxPages;
-	
 	/**
-	 * Constructs and initializes a
+	 * Constructs and initializes a UI tab, handling all the load/page rendering for the relevant filepath/page 
 	 * @param displayName What text the navigation bar's tab should display for this Tab
 	 * @param filePath Valid file path to the PDF the sheet is associated to
 	 * @param currentPage What page on the linked PDF should be open
 	 * @param dpi The dpi to load the pdf into an image from
+	 * @param dm A valid DataManager instance for managing the file IO 
 	 * @throws IOException 
 	 * @throws InvalidPasswordException 
 	 */
-	public Tab(String displayName, String filePath, int currentPage, int dpi) throws InvalidPasswordException, IOException {
+	public Tab(String displayName, String filePath, int currentPage, int dpi, ImageRenderer renderer) throws IOException {
 		super();
 		this.sheet = new Sheet(filePath, currentPage, dpi);
 		this.displayName = displayName;
 		this.scrollPositionX = 0;
 		this.scrollPositionY = 0;
-		document = null;
-		isOpen = false;
-		maxPages = 0; // this should be filled in later
-		recalculatePage(false);
+		this.renderer = renderer;
+				
+		recalculatePage();
 	}
 
 	public String getDisplayName() {
@@ -69,12 +64,22 @@ public class Tab extends JPanel {
 	}
 	
 	public int getMaxPages() {
-		return maxPages;
+		return sheet.getMaxPages();
+	}
+	
+	public void setMaxPages(int pages) {
+		sheet.setMaxPages(pages);
 	}
 
 	public void setCurrentPage(int currentPage) {
-		sheet.setCurrentPage(currentPage);
-		recalculatePage(true);
+		int oldPage = sheet.getCurrentPage();
+		
+		// don't recalculate unnecessarily
+		if (oldPage != currentPage && currentLoadedImage != null)
+		{
+			sheet.setCurrentPage(currentPage);
+			recalculatePage();
+		}
 	}
 
 	public String getFilePath() {
@@ -86,47 +91,27 @@ public class Tab extends JPanel {
 	}
 
 	public void setDpi(int dpi) {
-		sheet.setDpi(dpi);
-		recalculatePage(true);
+		int oldDpi = sheet.getDpi();
+		
+		// don't recalculate unnecessarily
+		if (oldDpi != dpi && currentLoadedImage != null)
+		{
+			sheet.setDpi(dpi);
+			recalculatePage();
+		}
 	}
 	
-	protected void recalculatePage(boolean leaveOpen) 
+	protected void recalculatePage() 
 	{
-		String filePath = getFilePath();
-		int currentPage = getCurrentPage();
-				
-		try {
-			
-			document = PDDocument.load(new File(filePath));
-		
-			isOpen = true;
-			PDFRenderer pdfRenderer = new PDFRenderer(document);
-			currentLoadedImage = pdfRenderer.renderImageWithDPI(currentPage, sheet.getDpi(), ImageType.RGB);		
-			maxPages = document.getNumberOfPages();
-			this.setPreferredSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
-			this.setMaximumSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
-	
-			if (!leaveOpen)
-			{
-				isOpen = false;
-				document.close();
-			}
-		
-		} catch (IOException e) {
-			throw new HandledUIException(e.getMessage());
-		}
+		currentLoadedImage = renderer.renderPDF(this, getCurrentPage(), getDpi());
 		
 		repaint();
-		
 	}
 	
-	public void onLeaving() throws IOException
+	public void onLeaving()
 	{
-		if (document != null && isOpen)
-		{
-			document.close();
-			isOpen = false;
-		}
+		renderer.closeOutTabInfo(this);
+		System.gc();
 	}
 	
 	@Override
@@ -151,6 +136,4 @@ public class Tab extends JPanel {
 		this.scrollPositionY = scrollPositionY;
 	}
 	
-	
-
 }

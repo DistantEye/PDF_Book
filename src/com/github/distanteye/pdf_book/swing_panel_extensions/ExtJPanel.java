@@ -117,14 +117,19 @@ public class ExtJPanel extends JPanel {
 		this.add(comp,cons);
 		this.children.add(comp);
 		
+		resetTemporaryConstraints();
+		
+		return comp;
+	}
+	
+	protected void resetTemporaryConstraints()
+	{
 		if (differentWeights)
 		{
 			cons.weightx = oldXWeight;
 			cons.weighty = oldYWeight;
 			this.differentWeights = false;
 		}
-		
-		return comp;
 	}
 	
 	/**

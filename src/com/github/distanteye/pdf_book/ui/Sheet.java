@@ -14,6 +14,7 @@ public class Sheet {
 	private String filePath;
 	private int currentPage;
 	private int dpi;
+	private int maxPages;
 		
 	/**
 	 * Constructs and initializes a Sheet with specified PDF file location, and currently opened page
@@ -25,8 +26,11 @@ public class Sheet {
 	public Sheet(String filePath, int currentPage, int dpi) throws IOException {
 		super();
 		this.filePath = filePath;
-		this.currentPage = currentPage;
+		
+		// note this is a potential hole with verifying a sane currentPage (vs using setCurrentPage) but with maxPages not generated until later...
+		this.currentPage = currentPage; 
 		this.dpi = dpi;
+		maxPages = 0;
 		
 		// check file path for sanity
 		File f = new File(filePath);
@@ -42,11 +46,25 @@ public class Sheet {
 	}
 
 	public void setCurrentPage(int currentPage) {
+		if ((maxPages != 0 && currentPage > maxPages) || currentPage < 1)
+		{
+			throw new IllegalArgumentException("Can't change current page past the last page or before the first one");
+		}
+		
 		this.currentPage = currentPage;
 	}
 
 	public String getFilePath() {
 		return filePath;
+	}
+	
+	public int getMaxPages() {
+		return maxPages;
+	}
+
+
+	public void setMaxPages(int maxPages) {
+		this.maxPages = maxPages;
 	}
 
 
