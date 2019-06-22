@@ -18,4 +18,5 @@ public interface DataManager {
 	byte[] checkOut(Tab t) throws IOException;
 	void checkOutQuiet(Tab t) throws IOException;
 	void checkIn(Tab t);
+	int getFileSize(Tab t);
 }

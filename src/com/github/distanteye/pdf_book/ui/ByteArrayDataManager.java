@@ -5,8 +5,6 @@ package com.github.distanteye.pdf_book.ui;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.HashMap;
 
 /**
@@ -23,6 +21,7 @@ import java.util.HashMap;
 public class ByteArrayDataManager implements DataManager {
 
 	private HashMap<String,byte[]> fileMap;
+	private HashMap<String,Integer> fileSizeMap;
 	private HashMap<Tab,String> tabMap; 
 	
 	/**
@@ -30,12 +29,13 @@ public class ByteArrayDataManager implements DataManager {
 	 */
 	public ByteArrayDataManager() {
 		fileMap = new HashMap<String, byte[]>();
+		fileSizeMap = new HashMap<String,Integer>();
 		tabMap = new HashMap<Tab, String>();
 	}
 	
 	public byte[] checkOut(Tab t) throws IOException
 	{
-		String key = t.getFilePath().toLowerCase();
+		String key = t.getFilePath();
 		
 		tabMap.put(t, key);
 		
@@ -44,10 +44,27 @@ public class ByteArrayDataManager implements DataManager {
 	
 	@Override
 	public void checkOutQuiet(Tab t) throws IOException {
-		String key = t.getFilePath().toLowerCase();
+		String key = t.getFilePath();
 		
 		tabMap.put(t, key);
 		getByteArray(key);
+	}
+	
+	public int getFileSize(Tab t)
+	{
+		if (fileSizeMap.containsKey(t))
+		{
+			return fileSizeMap.get(t);
+		}
+		else
+		{
+			try {
+				return checkOut(t).length;
+			} catch (IOException e) {
+				e.printStackTrace();
+				return -1;
+			}
+		}
 	}
 	
 	
@@ -79,6 +96,7 @@ public class ByteArrayDataManager implements DataManager {
 			mappedFile.close();
 			
 			fileMap.put(filePath, contents);
+			fileSizeMap.put(filePath, (int)size);
 			return contents;
 		}
 	}

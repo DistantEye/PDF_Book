@@ -64,7 +64,7 @@ public class PDF_Book implements UI {
 	
 	private JMenuBar menuBar;
 	private JMenu fileMenu, settingsMenu;
-	private JMenuItem save, load, changeDefault, openPDF;
+	private JMenuItem save, load, changeDefault, openPDF, fallBackNotice;
 
 	protected JFrame mainWindow;
 
@@ -82,6 +82,10 @@ public class PDF_Book implements UI {
 	protected int mainTextSize;
 
 	protected ArrayList<Tab> tabs;
+	
+	// this could be defined just during construction but there's the possibility file menu might be rebuilt someday
+	// have it as part of the state allows for handling stuff like that
+	protected boolean fallBackActive; 
 
 	/**
 	 * Creates and initializes the UI, setting up the full layout
@@ -89,14 +93,17 @@ public class PDF_Book implements UI {
 	 * @throws HeadlessException
 	 */
 	public PDF_Book() throws HeadlessException {
-
+		
+		
 		if (SimpleMuToolRenderer.IsAvailible())
 		{
 			renderer = new SimpleMuToolRenderer();
+			fallBackActive = false;
 		}
 		else
 		{
 			renderer = new PdfBoxRenderer(new ByteArrayDataManager());
+			fallBackActive = true;
 		}
 		
 		tabs = new ArrayList<Tab>();
@@ -163,6 +170,7 @@ public class PDF_Book implements UI {
 		mainWindow.setSize(1600, 900);
 
 		mainWindow.setVisible(true);
+		mainWindow.setExtendedState(mainWindow.getExtendedState() | JFrame.MAXIMIZED_BOTH);
 
 		save = new JMenuItem("Save Tabset");
 		load = new JMenuItem("Load Tabset");		
@@ -183,10 +191,19 @@ public class PDF_Book implements UI {
 		menuBar.add(fileMenu);
 		menuBar.add(settingsMenu);
 		
+		// message/instructiosn to display if the desired renderer isn't found
+		fallBackNotice = new JMenuItem("WARN: External PDF Render Not Found! Fallback renderer will perform poorly!");
+		
+		if (fallBackActive)
+		{			
+			menuBar.add(fallBackNotice);
+		}
+		
 		mainWindow.setJMenuBar(menuBar);
 		save.addActionListener(new ClickListener());
 		load.addActionListener(new ClickListener());
 		changeDefault.addActionListener(new ClickListener());
+		fallBackNotice.addActionListener(new ClickListener());
 		openPDF.addActionListener(new TabAddListener(leftPanel, leftScroll)); 
 
 		// end menu
@@ -274,9 +291,18 @@ public class PDF_Book implements UI {
 		int pageNum = activeTab.getCurrentPage();
 		int maxPages = activeTab.getMaxPages();
 		
+		String tabName = activeTab.getDisplayName();
+		String displayName = tabName;
+		
+		// we need to truncate some names so they fit on screen
+		if (displayName.length() > 45)
+		{
+			displayName = displayName.substring(0, 45) + "..";
+		}
+		
 		// put a header for the thing selected
 		parent.setNextGridWidth(5);
-		parent.addLabel(0, 0, "-> " + activeTab.getDisplayName());
+		parent.addLabel(0, 0, "-> " + displayName);
 		
 		parent.addLabel(1, 1, "Page ("+pageNum+"/"+maxPages+")");
 		JTextField pageNumF = parent.addMappedTF(nf, 1, 2, "", "currTabPageNum", 4, ""+pageNum, null, this, new TabPageNumWrapper(activeTab));
@@ -369,7 +395,24 @@ public class PDF_Book implements UI {
 	protected int addTabRow(GBagPanel parent, int y, Tab tab, int tabIndex) {
 		int x = 0;
 				
-		parent.addButton(x++, y, tab.getDisplayName()).addActionListener(new TabSwitchAction(tabs.indexOf(tab)));
+		String tabName = tab.getDisplayName();
+		String displayName = tabName;
+		boolean addToolTip = false;
+		
+		// we need to truncate some names so they fit on screen
+		if (displayName.length() > 28)
+		{
+			displayName = displayName.substring(0, 28) + "..";
+			addToolTip = true;
+		}
+		
+		JButton tabButton = parent.addButton(x++, y, displayName);
+		tabButton.addActionListener(new TabSwitchAction(tabs.indexOf(tab)));
+		
+		if (addToolTip)
+		{
+			tabButton.setToolTipText(tabName);
+		}
 		
 		parent.addButton(x++, y, "##X").addActionListener(new TabRemoveListener(parent, tabIndex, leftScroll));
 		
@@ -808,6 +851,12 @@ public class PDF_Book implements UI {
 				{
 					defaultDPI = Integer.parseInt(newDPI);
 				}
+			} else if (e.getSource().equals(fallBackNotice)) {
+				String message = "PDF Book looks for the presence of /external/mutool for the primary PDF Rendering engine.\n\n" +
+									"Obtain the appropriate executable from https://mupdf.com/ and copy or symbolic link it to that location.\n\n" +
+									"The fallback renderer will not be able to open all PDFs, is slower, and consumes a great deal of memory.\n\n" +
+									"( /external/pageCount.js also needs to be present but this is there by default unless the user removes it )";
+				JOptionPane.showMessageDialog(null, message, "Renderer Not Found", JOptionPane.ERROR_MESSAGE);
 			}
 			
 		}

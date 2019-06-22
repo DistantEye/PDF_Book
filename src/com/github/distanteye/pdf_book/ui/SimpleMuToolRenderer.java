@@ -7,11 +7,8 @@ package com.github.distanteye.pdf_book.ui;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 
 import javax.imageio.ImageIO;
@@ -33,16 +30,16 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 
 	public static boolean IsAvailible()
 	{
-		File rootDir = new File(".");
+		File rootDir = new File("./external");
 		File[] contents = rootDir.listFiles();
 		ArrayList<String> paths = new ArrayList<String>();
 		
 		for (File f : contents)
 		{
-			paths.add(f.getPath());
+			paths.add(f.getName());
 		}
 		
-		return paths.contains(".\\mutool.exe");
+		return (paths.contains("mutool.exe") || paths.contains("mutool")) && paths.contains("pageCount.js");
 
 	}
 	
@@ -60,30 +57,20 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 		}
 		
 		long startTime = System.nanoTime();
-		File rootDir = new File(".");
+		File rootDir = new File("./external");
+
 		BufferedImage currentLoadedImage = null;
 		
 		setPageCount(t);
 		
-		ProcessBuilder pb = new ProcessBuilder("mutool.exe", "draw", "-ooutput.png", "-r "+dpi, t.getFilePath(), ""+page);	
-		pb.directory(rootDir);		
+		ProcessBuilder pb = new ProcessBuilder("./external/mutool", "draw", "-F","png", "-o","-", "-r", ""+dpi, t.getFilePath(), ""+page);	
+		pb.directory(rootDir);
+
 		try {
 			Process p = pb.start();
-			
-			p.waitFor();
+			currentLoadedImage = ImageIO.read(p.getInputStream());
+			p.waitFor(); // because of the above read this should resolve near immediately
 		} catch (IOException | InterruptedException e) {
-			e.printStackTrace();
-			return null;
-		}
-		
-		// either we've null returned or the file should exist now?
-		
-		try {
-			File outputFile = new File("output.png");			
-			currentLoadedImage = ImageIO.read(outputFile);
-			outputFile.delete();
-			
-		} catch (IOException e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -104,8 +91,6 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 		dm.checkIn(t);
 	}
 
-	// TODO this is honestly a mess of different duct tape, but the end goal would be to replace this with a more direct interaction with MuPDF's libary
-	// so as to obtain page counts and render the current page at the same time.
 	protected void setPageCount(Tab t)
 	{
 		if (t.getMaxPages() != 0)
@@ -114,23 +99,10 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 		}
 		
 		String filePath = t.getFilePath();
-		File rootDir = new File(".");
+		File rootDir = new File("./external");
 		BufferedInputStream output = null;
 		
-		// this is cheaty but we want things self contained and not packaged alongside mini js files...
-		PrintWriter writer;
-		try {
-			writer = new PrintWriter("pageCount.js");
-			writer.println("var doc = new Document(argv[1]);");
-			writer.println("var n = doc.countPages();");
-			writer.println("print(n);");
-			writer.close();
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		ProcessBuilder pb = new ProcessBuilder("mutool.exe", "run", "pageCount.js", filePath);	
+		ProcessBuilder pb = new ProcessBuilder("./external/mutool", "run", "pageCount.js", filePath);	
 		pb.directory(rootDir);		
 		try {
 			Process p = pb.start();
@@ -140,9 +112,6 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 			e.printStackTrace();
 			return;
 		}
-		
-		File f = new File("pageCount.js");
-		f.delete();
 		
 		String outputStr = "";
 		try {
@@ -159,5 +128,6 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 		}
 			
 		t.setMaxPages(Integer.parseInt(outputStr.trim()));
+		
 	}
 }

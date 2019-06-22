@@ -15,7 +15,6 @@ import java.nio.file.Files;
  */
 public class SimpleFileDataManager implements DataManager {
 
-
 	/**
 	 * Creates a new DataManager and initializes both maps necessary to maintain file/tab indexing
 	 */
@@ -24,7 +23,7 @@ public class SimpleFileDataManager implements DataManager {
 	
 	public byte[] checkOut(Tab t) throws IOException
 	{
-		String key = t.getFilePath().toLowerCase();
+		String key = t.getFilePath();
 		
 		File input = new File(key);
 		
@@ -42,5 +41,17 @@ public class SimpleFileDataManager implements DataManager {
 	{
 		// nothing needs to be done here since we don't actually do anything with mappings
 	}
+
+	@Override
+	public int getFileSize(Tab t) {
+		try {
+			return checkOut(t).length;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return -1;
+		}
+	}
+	
+	
 
 }

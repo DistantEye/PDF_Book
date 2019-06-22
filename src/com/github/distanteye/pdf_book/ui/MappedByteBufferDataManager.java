@@ -23,6 +23,7 @@ import java.util.HashMap;
 public class MappedByteBufferDataManager implements DataManager {
 
 	private HashMap<String,MappedByteBuffer> fileMap;
+	private HashMap<String,Integer> fileSizeMap;
 	private HashMap<Tab,String> tabMap; 
 	
 	/**
@@ -30,12 +31,13 @@ public class MappedByteBufferDataManager implements DataManager {
 	 */
 	public MappedByteBufferDataManager() {
 		fileMap = new HashMap<String, MappedByteBuffer>();
+		fileSizeMap = new HashMap<String,Integer>();
 		tabMap = new HashMap<Tab, String>();
 	}
 	
 	public byte[] checkOut(Tab t) throws IOException
 	{
-		String key = t.getFilePath().toLowerCase();
+		String key = t.getFilePath();
 		
 		tabMap.put(t, key);
 		
@@ -50,13 +52,30 @@ public class MappedByteBufferDataManager implements DataManager {
 	@Override
 	public void checkOutQuiet(Tab t) throws IOException {
 		// basically a short copy of the checkOut method that doesn't bother to map the byteBuffer to an expensive variable
-		String key = t.getFilePath().toLowerCase();
+		String key = t.getFilePath();
 		
 		tabMap.put(t, key);
 		getByteBuffer(key);
 		
 		return;
 	}
+	
+	public int getFileSize(Tab t)
+	{
+		if (fileSizeMap.containsKey(t))
+		{
+			return fileSizeMap.get(t);
+		}
+		else
+		{
+			try {
+				return checkOut(t).length;
+			} catch (IOException e) {
+				e.printStackTrace();
+				return -1;
+			}
+		}
+	}	
 	
 	public void checkIn(Tab t)
 	{
@@ -83,6 +102,7 @@ public class MappedByteBufferDataManager implements DataManager {
 			buf.load(); // we want to make sure the whole thing ends up in there
 			mappedFile.close();
 			fileMap.put(filePath, buf);
+			fileSizeMap.put(filePath, (int)size);
 			return buf;
 		}
 	}	
