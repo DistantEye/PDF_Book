@@ -601,6 +601,9 @@ public class PDF_Book implements UI {
 	public void reset() {
 		tabs.clear();
 		firstTabSwitch = true; // need to reset this flag
+
+		renderTabBar(leftPanel, 0, leftScroll);
+		renderControlBar(controlPanel);
 	}
 	
 	public void switchTab(int idx)
