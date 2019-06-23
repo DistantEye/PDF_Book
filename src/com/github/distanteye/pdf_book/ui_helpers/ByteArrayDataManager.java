@@ -1,13 +1,13 @@
 /**
  * 
  */
-package com.github.distanteye.pdf_book.ui;
+package com.github.distanteye.pdf_book.ui_helpers;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.HashMap;
+
+import com.github.distanteye.pdf_book.ui.Tab;
 
 /**
  * Handles translation of file requests (via path) to memory mapped files and the resulting read requests
@@ -15,22 +15,22 @@ import java.util.HashMap;
  * Files are maintained in a checkout/checkin system that tries to minimize thrashing and redundancies via keeping files
  * in memory when a Tab leaves but other Tabs still use that file, as well as removing files from memory once no Tabs use the file
  * 
- * This implementation uses RandomAccessFile & MappedByteBuffer, storing only the former, which may be the wrong move
+ * This implementation uses RandomAccessFile/MappedByteBuffer
  * 
  * @author Vigilant
  *
  */
-public class MemoryMappedDataManager implements DataManager {
+public class ByteArrayDataManager implements DataManager {
 
-	private HashMap<String, RandomAccessFile> fileMap;
+	private HashMap<String,byte[]> fileMap;
 	private HashMap<String,Integer> fileSizeMap;
 	private HashMap<Tab,String> tabMap; 
 	
 	/**
 	 * Creates a new DataManager and initializes both maps necessary to maintain file/tab indexing
 	 */
-	public MemoryMappedDataManager() {
-		fileMap = new HashMap<String, RandomAccessFile>();
+	public ByteArrayDataManager() {
+		fileMap = new HashMap<String, byte[]>();
 		fileSizeMap = new HashMap<String,Integer>();
 		tabMap = new HashMap<Tab, String>();
 	}
@@ -41,23 +41,15 @@ public class MemoryMappedDataManager implements DataManager {
 		
 		tabMap.put(t, key);
 		
-		MappedByteBuffer buf = getByteBuffer(key);
-		byte[] output = new byte[buf.remaining()];
-		buf.get(output);
-		buf.rewind();
-		
-		return output;
+		return getByteArray(key);
 	}
 	
 	@Override
 	public void checkOutQuiet(Tab t) throws IOException {
-		// basically a short copy of the checkOut method that doesn't bother to map the byteBuffer to an expensive variable
 		String key = t.getFilePath();
 		
 		tabMap.put(t, key);
-		getByteBuffer(key);
-		
-		return;
+		getByteArray(key);
 	}
 	
 	public int getFileSize(Tab t)
@@ -77,6 +69,7 @@ public class MemoryMappedDataManager implements DataManager {
 		}
 	}
 	
+	
 	public void checkIn(Tab t)
 	{
 		String key = tabMap.get(t);
@@ -84,33 +77,30 @@ public class MemoryMappedDataManager implements DataManager {
 		
 		if (!tabMap.values().contains(key))
 		{
-			RandomAccessFile removedItem = fileMap.remove(key);
-			try {
-				removedItem.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			fileMap.remove(key);
 		}
 	}
 	
-	protected MappedByteBuffer getByteBuffer(String filePath) throws IOException
+	protected byte[] getByteArray(String filePath) throws IOException
 	{
-		RandomAccessFile mappedFile;
-		
 		if (fileMap.containsKey(filePath))
 		{
-			mappedFile = fileMap.get(filePath);
+			return fileMap.get(filePath);
 		}
 		else
 		{
-			mappedFile = new RandomAccessFile(filePath, "r");	
-			fileMap.put(filePath, mappedFile);
+			RandomAccessFile mappedFile = new RandomAccessFile(filePath, "r");
+			long size = mappedFile.length();
+			byte[] contents = new byte[(int) size];
+			
+			mappedFile.read(contents);
+			
+			mappedFile.close();
+			
+			fileMap.put(filePath, contents);
+			fileSizeMap.put(filePath, (int)size);
+			return contents;
 		}
-		
-		long size = mappedFile.length();
-		MappedByteBuffer buf = mappedFile.getChannel().map(FileChannel.MapMode.READ_ONLY, 0, size);
-		fileSizeMap.put(filePath, (int)size);
-		return buf;
-	}	
+	}
 
 }

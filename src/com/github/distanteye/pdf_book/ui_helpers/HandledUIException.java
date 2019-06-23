@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.github.distanteye.pdf_book.ui;
+package com.github.distanteye.pdf_book.ui_helpers;
 
 /**
  * Stubclass for abstracting exceptions to be caught and turned into a UI prompt alert

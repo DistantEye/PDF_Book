@@ -57,9 +57,7 @@ import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
 
 import com.github.distanteye.pdf_book.swing_panel_extensions.*;
-import com.github.distanteye.pdf_book.ui_helpers.ComponentDefocuser;
-import com.github.distanteye.pdf_book.ui_helpers.ControlFieldListener;
-import com.github.distanteye.pdf_book.ui_helpers.PanelMouseScroll;
+import com.github.distanteye.pdf_book.ui_helpers.*;
 import com.github.distanteye.pdf_book.spe_wrappers.*;
 import com.github.distanteye.pdf_book.spe_validators.*;
 

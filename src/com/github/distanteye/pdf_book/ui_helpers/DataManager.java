@@ -1,9 +1,11 @@
 /**
  * 
  */
-package com.github.distanteye.pdf_book.ui;
+package com.github.distanteye.pdf_book.ui_helpers;
 
 import java.io.IOException;
+
+import com.github.distanteye.pdf_book.ui.Tab;
 
 /**
  * Handles translation of file requests (via path) to memory mapped files and the resulting read requests

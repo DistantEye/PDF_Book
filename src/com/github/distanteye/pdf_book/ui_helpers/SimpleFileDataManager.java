@@ -1,11 +1,13 @@
 /**
  * 
  */
-package com.github.distanteye.pdf_book.ui;
+package com.github.distanteye.pdf_book.ui_helpers;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+
+import com.github.distanteye.pdf_book.ui.Tab;
 
 /**
  * Meant for debugging and comparisons as a control group : this DataManager doesn't manage anything at all, it just does straight File/IO

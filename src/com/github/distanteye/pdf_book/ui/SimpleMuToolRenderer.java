@@ -13,6 +13,10 @@ import java.util.ArrayList;
 
 import javax.imageio.ImageIO;
 
+import com.github.distanteye.pdf_book.ui_helpers.DataManager;
+import com.github.distanteye.pdf_book.ui_helpers.ImageRenderer;
+import com.github.distanteye.pdf_book.ui_helpers.MappedByteBufferDataManager;
+
 /**
  * @author Vigilant
  *

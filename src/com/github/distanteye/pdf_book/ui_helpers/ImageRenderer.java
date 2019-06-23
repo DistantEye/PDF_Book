@@ -1,9 +1,11 @@
 /**
  * 
  */
-package com.github.distanteye.pdf_book.ui;
+package com.github.distanteye.pdf_book.ui_helpers;
 
 import java.awt.image.BufferedImage;
+
+import com.github.distanteye.pdf_book.ui.Tab;
 
 /**
  * @author Vigilant

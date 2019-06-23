@@ -6,6 +6,8 @@ import java.io.IOException;
 
 import javax.swing.JPanel;
 
+import com.github.distanteye.pdf_book.ui_helpers.ImageRenderer;
+
 
 
 
