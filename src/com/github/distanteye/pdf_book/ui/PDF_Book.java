@@ -584,269 +584,7 @@ public class PDF_Book implements UI {
 	public void end() {
 		// No ending logic needed
 
-	}
-
-	private class TabRemoveListener implements ActionListener {
-		private GBagPanel parent;
-		private int tabIdx;
-		private JScrollPane scroll;
-
-		public TabRemoveListener(GBagPanel parent, int tabIdx, JScrollPane scroll) {
-			this.parent = parent;
-			this.tabIdx = tabIdx;
-			this.scroll = scroll;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent e) {
-			Tab t = tabs.remove(tabIdx);
-			
-			t.onLeaving();
-						
-			if (selectedTab == tabIdx)
-			{
-				selectedTab--; // if we're deleting the tab currently in view, fall back to the previous one
-			}			
-
-			renderTabBar(parent, 0, scroll);	
-			//renderControlBar(controlPanel); // is now implied by update
-			update();
-		}
-
-	}
-	
-	private class ButtonNudgeListener implements ActionListener {
-		private JTextField target;
-		private int nudgeAmount;
-
-		/**
-		 * ActionListener for a button linked to an integer containing textfield. Will increment/decrement the text field on click
-		 * @param target The JTextField to modify
-		 * @param nudgeAmount the amount to modify by on click
-		 */
-		public ButtonNudgeListener(JTextField target, int nudgeAmount) {
-			super();
-			this.target = target;
-			this.nudgeAmount = nudgeAmount;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent e) {
-			String initialValueStr = target.getText();
-			if (!Utils.isInteger(initialValueStr))
-			{
-				// this should never happen in proper use since validators should be used to force integers only on the target field
-				throw new IllegalArgumentException("Value is not an integer: " + initialValueStr); 
-			}
-			
-			int initialValue = Integer.parseInt(initialValueStr);
-			int newValue = initialValue + nudgeAmount;
-			
-			target.setText(""+newValue);
-			update();
-		}
-		
-		// aliases the actionPerformed so getAction can execute it
-		protected void parentAction()
-		{
-			actionPerformed(null);
-		}
-
-		@SuppressWarnings("serial")
-		public AbstractAction getAction()
-		{
-			return new AbstractAction() {
-				@Override
-				public void actionPerformed(ActionEvent e) {
-					parentAction();
-				}				
-			};
-		}
-	}
-
-	private class TabAddListener implements ActionListener {
-		private GBagPanel parent;
-		private JScrollPane scroll;
-
-		public TabAddListener(GBagPanel parent, JScrollPane scroll) {
-			this.parent = parent;
-			this.scroll = scroll;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent e) {
-			JFileChooser chooser = new JFileChooser(System.getProperty("user.dir"));
-			FileNameExtensionFilter filter = new FileNameExtensionFilter("PDF Documents", "pdf");
-			chooser.setFileFilter(filter);
-			int returnVal = chooser.showOpenDialog(mainWindow);
-			
-			if (returnVal == JFileChooser.APPROVE_OPTION) {
-				String filePath = chooser.getSelectedFile().getAbsolutePath();
-				
-				try {
-					tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
-				} catch (InvalidPasswordException e1) {
-					handleError(e1.getMessage());
-				} catch (IOException e1) {
-					handleError(e1.getMessage());
-				}
-				renderTabBar(parent, 0, scroll);
-				switchTab(tabs.size()-1);
-			}				
-		}
-	}
-	
-	private class TabCloneListener implements ActionListener {
-		private GBagPanel parent;
-		private JScrollPane scroll;
-		private Tab orig;
-
-		public TabCloneListener(Tab orig, GBagPanel parent, JScrollPane scroll) {
-			this.parent = parent;
-			this.scroll = scroll;
-			this.orig = orig;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent e) {
-			int origPosition = tabs.indexOf(orig);
-			
-			try {
-				// what's stored in orig may not be 100% up to date since normally it doesn't commit scroll positions until you change tabs
-				int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
-				int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
-				
-				//create a new tab based on as many of the old one's settings as possible
-				Tab t = new Tab(orig.getDisplayName()+"_", orig.getFilePath(), orig.getCurrentPage(), orig.getDpi(), renderer);
-				t.setScrollPositionX(oldScrollX);
-				t.setScrollPositionY(oldScrollY);
-				
-				tabs.add(origPosition+1, t);
-				
-			} catch (InvalidPasswordException e1) {
-				handleError(e1.getMessage());
-			} catch (IOException e1) {
-				handleError(e1.getMessage());
-			}
-			renderTabBar(parent, 0, scroll);
-			switchTab(origPosition+1);			
-		}
-		
-		// aliases the actionPerformed so getAction can execute it
-		protected void parentAction()
-		{
-			actionPerformed(null);
-		}
-
-		@SuppressWarnings("serial")
-		public AbstractAction getAction()
-		{
-			return new AbstractAction() {
-				@Override
-				public void actionPerformed(ActionEvent e) {
-					parentAction();
-				}				
-			};
-		}
-	}
-	
-	private class TabRenameListener implements ActionListener {
-		private GBagPanel parent;
-		private JScrollPane scroll;
-		private Tab tab;
-
-		public TabRenameListener(Tab t, GBagPanel parent, JScrollPane scroll) {
-			this.tab = t;
-			this.parent = parent;
-			this.scroll = scroll;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent e) {
-			String newName = promptUser("Choose new displayName:","");
-			
-			if (newName == null || newName.trim().length() == 0)
-			{
-				return;
-			}
-			
-			tab.setDisplayName(newName);
-			renderTabBar(parent, 0, scroll);						
-		}
-		
-		// aliases the actionPerformed so getAction can execute it
-		protected void parentAction()
-		{
-			actionPerformed(null);
-		}
-
-		@SuppressWarnings("serial")
-		public AbstractAction getAction()
-		{
-			return new AbstractAction() {
-				@Override
-				public void actionPerformed(ActionEvent e) {
-					parentAction();
-				}				
-			};
-		}
-
-	}
-	
-	private class TabReorderListener implements ActionListener {
-		private GBagPanel parent;
-		private JScrollPane scroll;
-		private int tabIdx;
-
-		public TabReorderListener(int tabIdx, GBagPanel parent, JScrollPane scroll) {
-			this.tabIdx = tabIdx;
-			this.parent = parent;
-			this.scroll = scroll;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent e) {			
-			Tab selectedTabObj = tabs.get(selectedTab);
-			
-			String range = "1-" + tabs.size();
-			String promptMsg = "Enter the new position (" + range + "):";
-			
-			String newIdxStr = promptUser(promptMsg,"");
-			
-			while (!Utils.isInteger(newIdxStr) || Integer.parseInt(newIdxStr) < 1 || Integer.parseInt(newIdxStr) > tabs.size())
-			{
-				newIdxStr = promptUser(promptMsg,"");
-			}
-
-			
-			int newIdx = Integer.parseInt(newIdxStr)-1;
-			
-			Tab toAdd = tabs.remove(tabIdx);
-			
-			tabs.add(newIdx,toAdd);
-			selectedTab = tabs.indexOf(selectedTabObj); // make sure selectedTab still points to the same tab it was pointing to before
-			
-			renderTabBar(parent, 0, scroll);						
-		}
-		
-		// aliases the actionPerformed so getAction can execute it
-		protected void parentAction()
-		{
-			actionPerformed(null);
-		}
-
-		@SuppressWarnings("serial")
-		public AbstractAction getAction()
-		{
-			return new AbstractAction() {
-				@Override
-				public void actionPerformed(ActionEvent e) {
-					parentAction();
-				}				
-			};
-		}
-
-	}
+	}	
 	
 	public void switchTab(int idx)
 	{
@@ -1124,7 +862,315 @@ public class PDF_Book implements UI {
 			handleError("File : \"" + fileName + "\" exists but could not be loaded");
 		}
 	}
+	
+	private class ButtonNudgeListener implements ActionListener {
+		private JTextField target;
+		private int nudgeAmount;
 
+		/**
+		 * ActionListener for a button linked to an integer containing textfield. Will increment/decrement the text field on click
+		 * @param target The JTextField to modify
+		 * @param nudgeAmount the amount to modify by on click
+		 */
+		public ButtonNudgeListener(JTextField target, int nudgeAmount) {
+			super();
+			this.target = target;
+			this.nudgeAmount = nudgeAmount;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			String initialValueStr = target.getText();
+			if (!Utils.isInteger(initialValueStr))
+			{
+				// this should never happen in proper use since validators should be used to force integers only on the target field
+				throw new IllegalArgumentException("Value is not an integer: " + initialValueStr); 
+			}
+			
+			int initialValue = Integer.parseInt(initialValueStr);
+			int newValue = initialValue + nudgeAmount;
+			
+			target.setText(""+newValue);
+			update();
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
+	}
+	
+	private class TabRemoveListener implements ActionListener {
+		private GBagPanel parent;
+		private int tabIdx;
+		private JScrollPane scroll;
+
+		public TabRemoveListener(GBagPanel parent, int tabIdx, JScrollPane scroll) {
+			this.parent = parent;
+			this.tabIdx = tabIdx;
+			this.scroll = scroll;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			Tab t = tabs.remove(tabIdx);
+			
+			t.onLeaving();
+						
+			if (selectedTab == tabIdx)
+			{
+				selectedTab--; // if we're deleting the tab currently in view, fall back to the previous one
+			}			
+
+			renderTabBar(parent, 0, scroll);	
+			//renderControlBar(controlPanel); // is now implied by update
+			update();
+		}
+
+	}
+
+	private class TabAddListener implements ActionListener {
+		private GBagPanel parent;
+		private JScrollPane scroll;
+
+		public TabAddListener(GBagPanel parent, JScrollPane scroll) {
+			this.parent = parent;
+			this.scroll = scroll;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			JFileChooser chooser = new JFileChooser(System.getProperty("user.dir"));
+			FileNameExtensionFilter filter = new FileNameExtensionFilter("PDF Documents", "pdf");
+			chooser.setFileFilter(filter);
+			int returnVal = chooser.showOpenDialog(mainWindow);
+			
+			if (returnVal == JFileChooser.APPROVE_OPTION) {
+				String filePath = chooser.getSelectedFile().getAbsolutePath();
+				
+				try {
+					tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
+				} catch (InvalidPasswordException e1) {
+					handleError(e1.getMessage());
+				} catch (IOException e1) {
+					handleError(e1.getMessage());
+				}
+				renderTabBar(parent, 0, scroll);
+				switchTab(tabs.size()-1);
+			}				
+		}
+	}
+	
+	private class TabCloneListener implements ActionListener {
+		private GBagPanel parent;
+		private JScrollPane scroll;
+		private Tab orig;
+
+		public TabCloneListener(Tab orig, GBagPanel parent, JScrollPane scroll) {
+			this.parent = parent;
+			this.scroll = scroll;
+			this.orig = orig;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			int origPosition = tabs.indexOf(orig);
+			
+			try {
+				// what's stored in orig may not be 100% up to date since normally it doesn't commit scroll positions until you change tabs
+				int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
+				int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
+				
+				//create a new tab based on as many of the old one's settings as possible
+				Tab t = new Tab(orig.getDisplayName()+"_", orig.getFilePath(), orig.getCurrentPage(), orig.getDpi(), renderer);
+				t.setScrollPositionX(oldScrollX);
+				t.setScrollPositionY(oldScrollY);
+				
+				tabs.add(origPosition+1, t);
+				
+			} catch (InvalidPasswordException e1) {
+				handleError(e1.getMessage());
+			} catch (IOException e1) {
+				handleError(e1.getMessage());
+			}
+			renderTabBar(parent, 0, scroll);
+			switchTab(origPosition+1);			
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
+	}
+	
+	private class TabRenameListener implements ActionListener {
+		private GBagPanel parent;
+		private JScrollPane scroll;
+		private Tab tab;
+
+		public TabRenameListener(Tab t, GBagPanel parent, JScrollPane scroll) {
+			this.tab = t;
+			this.parent = parent;
+			this.scroll = scroll;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			String newName = promptUser("Choose new displayName:","");
+			
+			if (newName == null || newName.trim().length() == 0)
+			{
+				return;
+			}
+			
+			tab.setDisplayName(newName);
+			renderTabBar(parent, 0, scroll);						
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
+
+	}
+	
+	private class TabReorderListener implements ActionListener {
+		private GBagPanel parent;
+		private JScrollPane scroll;
+		private int tabIdx;
+
+		public TabReorderListener(int tabIdx, GBagPanel parent, JScrollPane scroll) {
+			this.tabIdx = tabIdx;
+			this.parent = parent;
+			this.scroll = scroll;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {			
+			Tab selectedTabObj = tabs.get(selectedTab);
+			
+			String range = "1-" + tabs.size();
+			String promptMsg = "Enter the new position (" + range + "):";
+			
+			String newIdxStr = promptUser(promptMsg,"");
+			
+			while (!Utils.isInteger(newIdxStr) || Integer.parseInt(newIdxStr) < 1 || Integer.parseInt(newIdxStr) > tabs.size())
+			{
+				newIdxStr = promptUser(promptMsg,"");
+			}
+
+			
+			int newIdx = Integer.parseInt(newIdxStr)-1;
+			
+			Tab toAdd = tabs.remove(tabIdx);
+			
+			tabs.add(newIdx,toAdd);
+			selectedTab = tabs.indexOf(selectedTabObj); // make sure selectedTab still points to the same tab it was pointing to before
+			
+			renderTabBar(parent, 0, scroll);						
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
+
+	}
+
+	/**
+	 * For changing the active tab : when actionPerformed
+	 * is triggered (based on InputMap), switches tabs to go to either a predefined location, or a relative one
+	 * 
+	 * @author Vigilant
+	 */
+	private class TabSwitchAction extends AbstractAction {
+
+		private static final long serialVersionUID = 14624L;
+		private int selectedIdx;
+		private boolean relative;
+
+		public TabSwitchAction(int idx) {
+			this.selectedIdx = idx;
+			this.relative = false;
+		}
+		
+		public TabSwitchAction(int idx, boolean relative) {
+			this.selectedIdx = idx;
+			this.relative = relative;
+		}
+
+		public void actionPerformed(ActionEvent e) {
+			int target = selectedIdx;
+			if (relative)
+			{
+				target = selectedTab+selectedIdx;
+			}
+			
+			switchTab(target);
+		}
+	}
+	
+	/**
+	 * Whenever we want to force a UI update (Push and pull events for text fields execute
+	 * 
+	 * @author Vigilant
+	 */
+	@SuppressWarnings("serial")
+	private class UpdateAction extends AbstractAction {
+
+		public void actionPerformed(ActionEvent e) {
+			update();
+		}
+	}	
+	
 	private class ClickListener implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
@@ -1194,53 +1240,5 @@ public class PDF_Book implements UI {
 			
 		}
 	}
-	
-	
-
-	/**
-	 * For changing the active tab : when actionPerformed
-	 * is triggered (based on InputMap), switches tabs to go to either a predefined location, or a relative one
-	 * 
-	 * @author Vigilant
-	 */
-	private class TabSwitchAction extends AbstractAction {
-
-		private static final long serialVersionUID = 14624L;
-		private int selectedIdx;
-		private boolean relative;
-
-		public TabSwitchAction(int idx) {
-			this.selectedIdx = idx;
-			this.relative = false;
-		}
-		
-		public TabSwitchAction(int idx, boolean relative) {
-			this.selectedIdx = idx;
-			this.relative = relative;
-		}
-
-		public void actionPerformed(ActionEvent e) {
-			int target = selectedIdx;
-			if (relative)
-			{
-				target = selectedTab+selectedIdx;
-			}
-			
-			switchTab(target);
-		}
-	}
-	
-	/**
-	 * Whenever we want to force a UI update (Push and pull events for text fields execute
-	 * 
-	 * @author Vigilant
-	 */
-	@SuppressWarnings("serial")
-	private class UpdateAction extends AbstractAction {
-
-		public void actionPerformed(ActionEvent e) {
-			update();
-		}
-	}	
 	
 }
