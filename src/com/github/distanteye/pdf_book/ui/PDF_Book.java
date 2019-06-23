@@ -40,6 +40,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.JTextComponent;
 
@@ -455,16 +456,6 @@ public class PDF_Book implements UI {
 		{
 			switchTab(0);
 		}
-
-		/*
-		if (optionalScroll != null) {
-			JScrollBar verticalBar = optionalScroll.getVerticalScrollBar();
-			verticalBar.setValue(verticalBar.getMaximum());
-			optionalScroll.revalidate();
-			optionalScroll.repaint();
-
-		}
-		*/
 		
 		outputBox.repaint();					
 
@@ -785,15 +776,12 @@ public class PDF_Book implements UI {
 					selectedTab = 0;
 				}
 				
+				// we don't need to do anything with old values on first switch because old values don't/shouldn't exist
 				if (!firstTabSwitch) {
 					int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
 					int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
 					tabs.get(selectedTab).setScrollPositionX(oldScrollX);
 					tabs.get(selectedTab).setScrollPositionY(oldScrollY);
-				}
-				else
-				{
-					firstTabSwitch = false;
 				}
 				
 				CardLayout cLayout = (CardLayout) outputBox.getLayout();
@@ -803,11 +791,24 @@ public class PDF_Book implements UI {
 				int scrollX = tabs.get(selectedTab).getScrollPositionX();
 				int scrollY = tabs.get(selectedTab).getScrollPositionY();
 				
-				mainScroll.getHorizontalScrollBar().setValue(scrollX);
-				mainScroll.getVerticalScrollBar().setValue(scrollY);
-				
+				// something weird happens the first time around wherein scrollbars may refuse to set
+				if (!firstTabSwitch) {
+					mainScroll.getHorizontalScrollBar().setValue(scrollX);
+					mainScroll.getVerticalScrollBar().setValue(scrollY);
+				}
+				else
+				{
+					firstTabSwitch = false;
+					SwingUtilities.invokeLater(new Runnable() {
+				        public void run() {
+				        	mainScroll.getHorizontalScrollBar().setValue(scrollX);
+							mainScroll.getVerticalScrollBar().setValue(scrollY);
+				        }
+				    });
+				}							
+
 				renderControlBar(controlPanel);
-				
+
 				outputBox.revalidate();
 				outputBox.repaint();
 				outputBox.requestFocus();
@@ -857,6 +858,8 @@ public class PDF_Book implements UI {
 		Element bookSettings = new Element("BookSettings");
 		bookSettings.addContent(new Element("DefaultDPI").setText(""+defaultDPI));
 		bookSettings.addContent(new Element("CurrentTab").setText(""+selectedTab));
+		bookSettings.addContent(new Element("ScrollMaxX").setText(""+mainScroll.getHorizontalScrollBar().getMaximum()));
+		bookSettings.addContent(new Element("ScrollMaxY").setText(""+mainScroll.getVerticalScrollBar().getMaximum()));
 
 		doc.getRootElement().addContent(bookSettings);
 
@@ -918,7 +921,7 @@ public class PDF_Book implements UI {
 
 		Element tabSettings = root.getChild("BookSettings");
 		Utils.verifyChildren(tabSettings,
-				new String[] { "DefaultDPI", "CurrentTab" });
+				new String[] { "DefaultDPI", "CurrentTab", "ScrollMaxX", "ScrollMaxY" });
 		if (!Utils.isInteger(tabSettings.getChildText("DefaultDPI"))) {
 			handleError("Load error : DefaultDPI isn't a number");
 			return;
@@ -931,6 +934,22 @@ public class PDF_Book implements UI {
 			return;
 		} else {
 			this.selectedTab = Integer.parseInt(tabSettings.getChildText("CurrentTab"));
+		}
+		
+		if (!Utils.isInteger(tabSettings.getChildText("ScrollMaxX"))) {
+			handleError("Load error : ScrollMaxX isn't a number");
+			return;
+		} else {
+			int scrollMaxX = Integer.parseInt(tabSettings.getChildText("ScrollMaxX"));
+			mainScroll.getHorizontalScrollBar().setMaximum(scrollMaxX);
+		}
+		
+		if (!Utils.isInteger(tabSettings.getChildText("ScrollMaxY"))) {
+			handleError("Load error : ScrollMaxY isn't a number");
+			return;
+		} else {
+			int scrollMaxY = Integer.parseInt(tabSettings.getChildText("ScrollMaxY"));
+			mainScroll.getVerticalScrollBar().setMaximum(scrollMaxY);
 		}
 
 		Element tabs = root.getChild("Tabs");
@@ -994,8 +1013,7 @@ public class PDF_Book implements UI {
 		}
 
 		renderTabBar(leftPanel, 0, leftScroll);
-		this.update();
-
+		update();
 	}
 
 	public void save(String fileName) {
