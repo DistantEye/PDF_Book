@@ -2,6 +2,7 @@ package com.github.distanteye.pdf_book.ui;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Color;
 import java.awt.ComponentOrientation;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
@@ -10,9 +11,11 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,11 +39,13 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.text.JTextComponent;
 
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.jdom2.Document;
@@ -49,6 +54,9 @@ import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
 
 import com.github.distanteye.pdf_book.swing_panel_extensions.*;
+import com.github.distanteye.pdf_book.ui_helpers.ComponentDefocuser;
+import com.github.distanteye.pdf_book.ui_helpers.ControlFieldListener;
+import com.github.distanteye.pdf_book.ui_helpers.PanelMouseScroll;
 import com.github.distanteye.pdf_book.spe_wrappers.*;
 import com.github.distanteye.pdf_book.spe_validators.*;
 
@@ -63,9 +71,11 @@ public class PDF_Book implements UI {
 	private ImageRenderer renderer;
 	
 	private JMenuBar menuBar;
-	private JMenu fileMenu, settingsMenu;
-	private JMenuItem save, load, changeDefault, openPDF, fallBackNotice;
+	private JMenu fileMenu, settingsMenu, helpMenu;
+	private JMenuItem save, load, changeDefault, openPDF, fallBackNotice, keyboardShortcuts, installingRenderers;
 
+	private JLabel confirmLabelPage, confirmLabelDpi;
+	
 	protected JFrame mainWindow;
 
 	protected JScrollPane mainScroll, leftScroll;
@@ -86,6 +96,10 @@ public class PDF_Book implements UI {
 	// this could be defined just during construction but there's the possibility file menu might be rebuilt someday
 	// have it as part of the state allows for handling stuff like that
 	protected boolean fallBackActive; 
+	
+	// referential aids to keep code easily restructurable
+	protected GBagPanel tabPanel;
+	protected JScrollPane tabScroll;
 
 	/**
 	 * Creates and initializes the UI, setting up the full layout
@@ -150,7 +164,7 @@ public class PDF_Book implements UI {
 		leftScroll = new JScrollPane(leftPanel);
 		leftScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		leftScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-		leftScroll.setPreferredSize(new Dimension(200, 750));
+		leftScroll.setPreferredSize(new Dimension(200, 650));
 		
 		// enable drag scrolling
 		MouseAdapter leftPanelMouseAdapter = new PanelMouseScroll(leftPanel);
@@ -187,9 +201,16 @@ public class PDF_Book implements UI {
 		
 		settingsMenu = new JMenu("Settings");
 		settingsMenu.add(changeDefault);
+
+		helpMenu = new JMenu("Help");
+		keyboardShortcuts = new JMenuItem("Keyboard Shortcuts");
+		installingRenderers = new JMenuItem("Installing Renderer");
+		helpMenu.add(keyboardShortcuts);
+		helpMenu.add(installingRenderers);
 		
 		menuBar.add(fileMenu);
 		menuBar.add(settingsMenu);
+		menuBar.add(helpMenu);
 		
 		// message/instructiosn to display if the desired renderer isn't found
 		fallBackNotice = new JMenuItem("WARN: External PDF Render Not Found! Fallback renderer will perform poorly!");
@@ -205,7 +226,8 @@ public class PDF_Book implements UI {
 		changeDefault.addActionListener(new ClickListener());
 		fallBackNotice.addActionListener(new ClickListener());
 		openPDF.addActionListener(new TabAddListener(leftPanel, leftScroll)); 
-
+		keyboardShortcuts.addActionListener(new ClickListener());
+		installingRenderers.addActionListener(new ClickListener());
 		// end menu
 
 		
@@ -237,34 +259,71 @@ public class PDF_Book implements UI {
 				GridBagConstraints.BOTH);
 		mainPanel.addSpecialChild(outputBox); // the scroll hides bottomPanel from being registered properly by the normal infrastructure
 
-		// adds a keyboard shortcut Ctrl + [0-9] to switch between the first
+				
+		renderTabBar(leftPanel, 0, leftScroll); // needs to be last
+
+	}
+	
+	protected void addKeyBindings(JTextComponent pageNumTBox, JButton pageNumLeftB, JButton pageNumRightB)
+	{
+		// adds a keyboard shortcut Ctrl + [1-9] to switch between the first
 		// through nine entries in the chat as combobox
 		// we have to use Key Bindings to get around the focus issues, we want
 		// this to be global issuable
 		// note that a lot of components can have issues hosting an inputmap,
 		// but textboxes are very cooperative, so we use one of the textboxes
 		// with window focus event
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("1"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 1"),
+				new TabSwitchAction(0));
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 2"),
 				new TabSwitchAction(1));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("2"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 3"),
 				new TabSwitchAction(2));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 3"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 4"),
 				new TabSwitchAction(3));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 4"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 5"),
 				new TabSwitchAction(4));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 5"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 6"),
 				new TabSwitchAction(5));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 6"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 7"),
 				new TabSwitchAction(6));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 7"),
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 8"),
 				new TabSwitchAction(7));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 8"),
-				new TabSwitchAction(8));
-		mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 9"),
-				new TabSwitchAction(9));	
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("control 9"),
+				new TabSwitchAction(8));	
 		
-		renderTabBar(leftPanel, 0, leftScroll); // needs to be last
+		// keyboard shortcuts for Ctrl + UpArrow/Down Arrow for switching up or down in the tab list
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.CTRL_MASK),
+				new TabSwitchAction(-1,true));
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.CTRL_MASK),
+				new TabSwitchAction(1,true));
+		
+		// keyboard shortcuts for Ctrl + Left/Right arrows changing pages - the action accesses the same action the buttons were given
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, InputEvent.CTRL_MASK),
+				((ButtonNudgeListener)pageNumLeftB.getActionListeners()[0]).getAction());
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.CTRL_MASK),
+				((ButtonNudgeListener)pageNumRightB.getActionListeners()[0]).getAction());
+		
+		// Ctrl + G blanks the pagenum box and focuses it, allowing for easy entry of new pages to go to
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_MASK),
+				new AbstractAction() {
+					private static final long serialVersionUID = 8165551563623502005L;
 
+					@Override
+					public void actionPerformed(ActionEvent arg0) {
+						pageNumTBox.requestFocus();
+						pageNumTBox.setText("");
+					}
+			
+		});	
+		
+		// Ctrl + R brings up the rename prompt for the current tab
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_MASK),
+				new TabRenameListener(tabs.get(selectedTab), tabPanel, tabScroll).getAction());	
+		
+		// Ctrl + C clones the current tab and switches to it
+				pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK),
+						new TabCloneListener(tabs.get(selectedTab), tabPanel, tabScroll).getAction());	
 	}
 	
 	/**
@@ -276,6 +335,11 @@ public class PDF_Book implements UI {
 	 */
 	protected void renderControlBar(GBagPanel parent) {
 		parent.removeAll();
+		MouseListener[] toRemove = parent.getMouseListeners(); 
+		for (MouseListener l : toRemove)
+		{
+			parent.removeMouseListener(l);
+		}
 		
 		if (selectedTab < 0 || selectedTab >= tabs.size() )
 		{
@@ -305,19 +369,46 @@ public class PDF_Book implements UI {
 		parent.addLabel(0, 0, "-> " + displayName);
 		
 		parent.addLabel(1, 1, "Page ("+pageNum+"/"+maxPages+")");
-		JTextField pageNumF = parent.addMappedTF(nf, 1, 2, "", "currTabPageNum", 4, ""+pageNum, null, this, new TabPageNumWrapper(activeTab));
+		JTextField pageNumF = parent.addMappedTF(nf, 1, 2, "", "currTabPageNum", 4, ""+pageNum, null, null, new TabPageNumWrapper(activeTab));
 		pageNumF.setInputVerifier(new NumericValidator());
-		parent.addButton(0, 2, "<").addActionListener(new ButtonNudgeListener(pageNumF, -1));
-		parent.addButton(2, 2, ">").addActionListener(new ButtonNudgeListener(pageNumF, 1));
+		
+		JButton pageNumLeft = parent.addButton(0, 2, "<");
+		JButton pageNumRight = parent.addButton(2, 2, ">");	
+		pageNumLeft.addActionListener(new ButtonNudgeListener(pageNumF, -1));
+		pageNumRight.addActionListener(new ButtonNudgeListener(pageNumF, 1));
 		
 		parent.addLabel(4, 1, "DPI");
-		JTextField dpiF = parent.addMappedTF(nf, 4, 2, "", "currTabDPI", 4, ""+activeTab.getDpi(), null, this, new TabDpiWrapper(activeTab));
+		JTextField dpiF = parent.addMappedTF(nf, 4, 2, "", "currTabDPI", 4, ""+activeTab.getDpi(), null, null, new TabDpiWrapper(activeTab));
+
 		dpiF.setInputVerifier(new NumericValidator());
 		parent.addButton(3, 2, "<").addActionListener(new ButtonNudgeListener(dpiF, -8));
 		parent.addButton(5, 2, ">").addActionListener(new ButtonNudgeListener(dpiF, 8));
 
+		
+		// set up update behavior for the two textboxes : they should trigger an update whenever someone hits enter or if they leave focus on the textBox
+		// upon a change to the text there should be a label indicating that Enter is pressed to confirm changes
+		pageNumF.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), new UpdateAction() );
+		dpiF.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), new UpdateAction() );
+		
+		parent.addMouseListener(new ComponentDefocuser(pageNumF));
+		parent.addMouseListener(new ComponentDefocuser(dpiF)); 
+		
+		// The next part are two labels that should prompt the user to hit enter to confirm changes when they're typing things in the text fields
+		parent.addLabel(0, 3, " "); // this is just so the space gets occupied
+		parent.setNextGridWidth(2);
+		confirmLabelPage = parent.addLabel(1, 3, "");
+		parent.setNextGridWidth(2);
+		confirmLabelDpi = parent.addLabel(4, 3, "");
+		// add the special listeners that manage the display
+		pageNumF.getDocument().addDocumentListener(new ControlFieldListener(pageNumF, confirmLabelPage, "(Enter to confirm)"));
+		dpiF.getDocument().addDocumentListener(new ControlFieldListener(dpiF, confirmLabelDpi, "(Enter to confirm)"));
+		
+		
 		//parent.endVertical(0, y);
 
+		// try and hook in the keyboard shortcuts
+		addKeyBindings(pageNumF, pageNumLeft, pageNumRight);
+		
 		parent.revalidate();
 		parent.repaint();
 	}
@@ -340,6 +431,9 @@ public class PDF_Book implements UI {
 	protected int renderTabBar(GBagPanel parent, int y, JScrollPane optionalScroll) {
 		parent.removeAll();
 		outputBox.removeAll();	
+		
+		tabPanel = parent;
+		tabScroll = optionalScroll;
 		
 		int i = 0;
 		for (Tab t : tabs) {
@@ -441,6 +535,7 @@ public class PDF_Book implements UI {
 	 */
 	public void update() {
 		mainPanel.updateAllComps(true);
+		renderControlBar(controlPanel); // most things don't need to be nuked post update, but Control bar is finicky
 	}
 
 	@Override
@@ -492,7 +587,7 @@ public class PDF_Book implements UI {
 			}			
 
 			renderTabBar(parent, 0, scroll);	
-			renderControlBar(controlPanel);
+			//renderControlBar(controlPanel); // is now implied by update
 			update();
 		}
 
@@ -526,8 +621,25 @@ public class PDF_Book implements UI {
 			int newValue = initialValue + nudgeAmount;
 			
 			target.setText(""+newValue);
+			update();
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
 		}
 
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
 	}
 
 	private class TabAddListener implements ActionListener {
@@ -560,7 +672,57 @@ public class PDF_Book implements UI {
 				switchTab(tabs.size()-1);
 			}				
 		}
+	}
+	
+	private class TabCloneListener implements ActionListener {
+		private GBagPanel parent;
+		private JScrollPane scroll;
+		private Tab orig;
 
+		public TabCloneListener(Tab orig, GBagPanel parent, JScrollPane scroll) {
+			this.parent = parent;
+			this.scroll = scroll;
+			this.orig = orig;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			try {
+				// what's stored in orig may not be 100% up to date since normally it doesn't commit scroll positions until you change tabs
+				int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
+				int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
+				
+				//create a new tab based on as many of the old one's settings as possible
+				Tab t = new Tab(orig.getDisplayName(), orig.getFilePath(), orig.getCurrentPage(), orig.getDpi(), renderer);
+				t.setScrollPositionX(oldScrollX);
+				t.setScrollPositionY(oldScrollY);
+				
+				tabs.add(t);
+			} catch (InvalidPasswordException e1) {
+				handleError(e1.getMessage());
+			} catch (IOException e1) {
+				handleError(e1.getMessage());
+			}
+			renderTabBar(parent, 0, scroll);
+			switchTab(tabs.size()-1);			
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
 	}
 	
 	private class TabRenameListener implements ActionListener {
@@ -585,6 +747,23 @@ public class PDF_Book implements UI {
 			
 			tab.setDisplayName(newName);
 			renderTabBar(parent, 0, scroll);						
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
 		}
 
 	}
@@ -851,12 +1030,39 @@ public class PDF_Book implements UI {
 				{
 					defaultDPI = Integer.parseInt(newDPI);
 				}
-			} else if (e.getSource().equals(fallBackNotice)) {
+			} else if (e.getSource().equals(fallBackNotice) || e.getSource().equals(installingRenderers)) {
+				String title = "Renderer Not Found";
+				int dialogType = JOptionPane.ERROR_MESSAGE;
+				
+				// installingRenderers shares the message but not the error indicators
+				if (e.getSource().equals(installingRenderers))
+				{
+					title = "Renderer Install";
+					dialogType = JOptionPane.INFORMATION_MESSAGE;
+				}
+				
 				String message = "PDF Book looks for the presence of /external/mutool for the primary PDF Rendering engine.\n\n" +
 									"Obtain the appropriate executable from https://mupdf.com/ and copy or symbolic link it to that location.\n\n" +
 									"The fallback renderer will not be able to open all PDFs, is slower, and consumes a great deal of memory.\n\n" +
 									"( /external/pageCount.js also needs to be present but this is there by default unless the user removes it )";
-				JOptionPane.showMessageDialog(null, message, "Renderer Not Found", JOptionPane.ERROR_MESSAGE);
+				
+				// we use a text box so the text (particularly the url) becomes selectable
+				JTextArea textBox = new JTextArea(message,8,52);              
+				textBox.setEditable(false);
+				textBox.setLineWrap(true);
+				textBox.setOpaque(false);
+				textBox.setBackground(new Color(0,0,0,0));
+				
+				JOptionPane.showMessageDialog(null, textBox, title, dialogType);
+			} else if (e.getSource().equals(keyboardShortcuts)) {
+				String message = "Ctrl + [1-9] will switch to the first through ninth tab.\n\n" +
+						"Ctrl + Up/Down will switch one up or one down.\n\n" +
+						"Ctrl + Left/Right will change the current page on the selected tab.\n\n" +
+						"Ctrl + c will clone the current tab and switch to the clone.\n\n" +
+						"Ctrl + r will bring up the rename prompt\n\n" +
+						"Ctrl + g will focus the page num text field and clear it, so a new page can be entered.\n\n" +
+						"Tip: The PageNum and DPI textboxes may block shortcuts when active. Click outside of them to break focus";
+				JOptionPane.showMessageDialog(null, message, "Keyboard Shortcuts", JOptionPane.INFORMATION_MESSAGE);
 			}
 			
 		}
@@ -865,9 +1071,8 @@ public class PDF_Book implements UI {
 	
 
 	/**
-	 * Action listener meant to work with the chatAs box : when actionPerformed
-	 * is triggered (based on InputMap), switches the chatAs combobox to select
-	 * a particular indexed name
+	 * For changing the active tab : when actionPerformed
+	 * is triggered (based on InputMap), switches tabs to go to either a predefined location, or a relative one
 	 * 
 	 * @author Vigilant
 	 */
@@ -875,51 +1080,40 @@ public class PDF_Book implements UI {
 
 		private static final long serialVersionUID = 14624L;
 		private int selectedIdx;
+		private boolean relative;
 
 		public TabSwitchAction(int idx) {
 			this.selectedIdx = idx;
+			this.relative = false;
+		}
+		
+		public TabSwitchAction(int idx, boolean relative) {
+			this.selectedIdx = idx;
+			this.relative = relative;
 		}
 
 		public void actionPerformed(ActionEvent e) {
-			switchTab(selectedIdx);
+			int target = selectedIdx;
+			if (relative)
+			{
+				target = selectedTab+selectedIdx;
+			}
+			
+			switchTab(target);
 		}
 	}
 	
-	// adapted from https://stackoverflow.com/a/31173371/2934891
-	private class PanelMouseScroll extends MouseAdapter {
-		private Point origin;
-		private JPanel panel;
-		
-		public PanelMouseScroll(JPanel panel)
-		{
-			this.panel = panel;
+	/**
+	 * Whenever we want to force a UI update (Push and pull events for text fields execute
+	 * 
+	 * @author Vigilant
+	 */
+	@SuppressWarnings("serial")
+	private class UpdateAction extends AbstractAction {
+
+		public void actionPerformed(ActionEvent e) {
+			update();
 		}
-
-		@Override
-        public void mousePressed(MouseEvent e) {
-            origin = new Point(e.getPoint());
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-        }
-
-        @Override
-        public void mouseDragged(MouseEvent e) {
-            if (origin != null) {
-                JViewport viewPort = (JViewport) SwingUtilities.getAncestorOfClass(JViewport.class, panel);
-                if (viewPort != null) {
-                    int deltaX = origin.x - e.getX();
-                    int deltaY = origin.y - e.getY();
-
-                    Rectangle view = viewPort.getViewRect();
-                    view.x += deltaX;
-                    view.y += deltaY;
-
-                    panel.scrollRectToVisible(view);
-                }
-            }
-        }
-	}
-
+	}	
+	
 }
