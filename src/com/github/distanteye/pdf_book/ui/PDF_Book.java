@@ -687,24 +687,27 @@ public class PDF_Book implements UI {
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
+			int origPosition = tabs.indexOf(orig);
+			
 			try {
 				// what's stored in orig may not be 100% up to date since normally it doesn't commit scroll positions until you change tabs
 				int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
 				int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
 				
 				//create a new tab based on as many of the old one's settings as possible
-				Tab t = new Tab(orig.getDisplayName(), orig.getFilePath(), orig.getCurrentPage(), orig.getDpi(), renderer);
+				Tab t = new Tab(orig.getDisplayName()+"_", orig.getFilePath(), orig.getCurrentPage(), orig.getDpi(), renderer);
 				t.setScrollPositionX(oldScrollX);
 				t.setScrollPositionY(oldScrollY);
 				
-				tabs.add(t);
+				tabs.add(origPosition+1, t);
+				
 			} catch (InvalidPasswordException e1) {
 				handleError(e1.getMessage());
 			} catch (IOException e1) {
 				handleError(e1.getMessage());
 			}
 			renderTabBar(parent, 0, scroll);
-			switchTab(tabs.size()-1);			
+			switchTab(origPosition+1);			
 		}
 		
 		// aliases the actionPerformed so getAction can execute it
