@@ -35,7 +35,6 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -264,7 +263,8 @@ public class PDF_Book implements UI {
 
 	}
 	
-	protected void addKeyBindings(JTextComponent pageNumTBox, JButton pageNumLeftB, JButton pageNumRightB)
+	protected void addKeyBindings(JTextComponent pageNumTBox, JButton pageNumLeftB, JButton pageNumRightB,
+								  JTextComponent dpiTBox, JButton dpiLeftB, JButton dpiRightB)
 	{
 		// adds a keyboard shortcut Ctrl + [1-9] to switch between the first
 		// through nine entries in the chat as combobox
@@ -304,6 +304,21 @@ public class PDF_Book implements UI {
 		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.CTRL_MASK),
 				((ButtonNudgeListener)pageNumRightB.getActionListeners()[0]).getAction());
 		
+		// keyboard shortcuts for Ctrl + [-,+] changing DPI - the action accesses the same action the buttons were given
+		// plus and minus are weird on keyboards so we do multiple for each
+		
+		dpiTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, InputEvent.CTRL_MASK),
+				((ButtonNudgeListener)dpiLeftB.getActionListeners()[0]).getAction());
+		dpiTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, InputEvent.CTRL_MASK),
+				((ButtonNudgeListener)dpiLeftB.getActionListeners()[0]).getAction());
+		
+		dpiTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, InputEvent.CTRL_MASK),
+				((ButtonNudgeListener)dpiRightB.getActionListeners()[0]).getAction());
+		dpiTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ADD, InputEvent.CTRL_MASK),
+				((ButtonNudgeListener)dpiRightB.getActionListeners()[0]).getAction());
+		dpiTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK),
+				((ButtonNudgeListener)dpiRightB.getActionListeners()[0]).getAction());
+		
 		// Ctrl + G blanks the pagenum box and focuses it, allowing for easy entry of new pages to go to
 		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_MASK),
 				new AbstractAction() {
@@ -324,6 +339,10 @@ public class PDF_Book implements UI {
 		// Ctrl + C clones the current tab and switches to it
 				pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK),
 						new TabCloneListener(tabs.get(selectedTab), tabPanel, tabScroll).getAction());	
+				
+		// Ctrl + O prompts the user for a new position for the current tab and executes the move
+		pageNumTBox.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_MASK),
+				new TabReorderListener(selectedTab, tabPanel, tabScroll).getAction());	
 	}
 	
 	/**
@@ -379,10 +398,11 @@ public class PDF_Book implements UI {
 		
 		parent.addLabel(4, 1, "DPI");
 		JTextField dpiF = parent.addMappedTF(nf, 4, 2, "", "currTabDPI", 4, ""+activeTab.getDpi(), null, null, new TabDpiWrapper(activeTab));
-
 		dpiF.setInputVerifier(new NumericValidator());
-		parent.addButton(3, 2, "<").addActionListener(new ButtonNudgeListener(dpiF, -8));
-		parent.addButton(5, 2, ">").addActionListener(new ButtonNudgeListener(dpiF, 8));
+		JButton dpiLeft = parent.addButton(3, 2, "<");
+		JButton dpiRight = parent.addButton(5, 2, ">");
+		dpiLeft.addActionListener(new ButtonNudgeListener(dpiF, -8));
+		dpiRight.addActionListener(new ButtonNudgeListener(dpiF, 8));
 
 		
 		// set up update behavior for the two textboxes : they should trigger an update whenever someone hits enter or if they leave focus on the textBox
@@ -407,7 +427,7 @@ public class PDF_Book implements UI {
 		//parent.endVertical(0, y);
 
 		// try and hook in the keyboard shortcuts
-		addKeyBindings(pageNumF, pageNumLeft, pageNumRight);
+		addKeyBindings(pageNumF, pageNumLeft, pageNumRight, dpiF, dpiLeft, dpiRight);
 		
 		parent.revalidate();
 		parent.repaint();
@@ -441,7 +461,7 @@ public class PDF_Book implements UI {
 			outputBox.add(t, ""+tabs.indexOf(t));
 		}
 
-		parent.addButton(0, y++, "+").addActionListener(new TabAddListener(parent, optionalScroll));
+		parent.addButton(1, y++, "+").addActionListener(new TabAddListener(parent, optionalScroll));
 
 		parent.endVertical(0, y);
 
@@ -492,18 +512,23 @@ public class PDF_Book implements UI {
 			addToolTip = true;
 		}
 		
+		parent.addLabel(x++, y, (tabIndex+1)+"."); // adds a 1. , 2. , 3. , etc notation
+		
 		JButton tabButton = parent.addButton(x++, y, displayName);
 		tabButton.addActionListener(new TabSwitchAction(tabs.indexOf(tab)));
 		
 		if (addToolTip)
 		{
 			tabButton.setToolTipText(tabName);
-		}
-				
+		}				
 		
 		JButton renameButton = parent.addButton(x++, y, "Rename");
 		renameButton.setMargin(new Insets(0,0,0,0));
 		renameButton.addActionListener(new TabRenameListener(tab, parent, leftScroll));
+		
+		JButton reorderButton = parent.addButton(x++, y, "Reorder");
+		reorderButton.setMargin(new Insets(0,0,0,0));
+		reorderButton.addActionListener(new TabReorderListener(tabIndex, parent, leftScroll));
 		
 		JButton removeButton = parent.addButton(x++, y, "X");
 		removeButton.setMargin(new Insets(0,0,0,0));
@@ -746,6 +771,61 @@ public class PDF_Book implements UI {
 			}
 			
 			tab.setDisplayName(newName);
+			renderTabBar(parent, 0, scroll);						
+		}
+		
+		// aliases the actionPerformed so getAction can execute it
+		protected void parentAction()
+		{
+			actionPerformed(null);
+		}
+
+		@SuppressWarnings("serial")
+		public AbstractAction getAction()
+		{
+			return new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					parentAction();
+				}				
+			};
+		}
+
+	}
+	
+	private class TabReorderListener implements ActionListener {
+		private GBagPanel parent;
+		private JScrollPane scroll;
+		private int tabIdx;
+
+		public TabReorderListener(int tabIdx, GBagPanel parent, JScrollPane scroll) {
+			this.tabIdx = tabIdx;
+			this.parent = parent;
+			this.scroll = scroll;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {			
+			Tab selectedTabObj = tabs.get(selectedTab);
+			
+			String range = "1-" + tabs.size();
+			String promptMsg = "Enter the new position (" + range + "):";
+			
+			String newIdxStr = promptUser(promptMsg,"");
+			
+			while (!Utils.isInteger(newIdxStr) || Integer.parseInt(newIdxStr) < 1 || Integer.parseInt(newIdxStr) > tabs.size())
+			{
+				newIdxStr = promptUser(promptMsg,"");
+			}
+
+			
+			int newIdx = Integer.parseInt(newIdxStr)-1;
+			
+			Tab toAdd = tabs.remove(tabIdx);
+			
+			tabs.add(newIdx,toAdd);
+			selectedTab = tabs.indexOf(selectedTabObj); // make sure selectedTab still points to the same tab it was pointing to before
+			
 			renderTabBar(parent, 0, scroll);						
 		}
 		
@@ -1101,11 +1181,13 @@ public class PDF_Book implements UI {
 				JOptionPane.showMessageDialog(null, textBox, title, dialogType);
 			} else if (e.getSource().equals(keyboardShortcuts)) {
 				String message = "Ctrl + [1-9] will switch to the first through ninth tab.\n\n" +
-						"Ctrl + Up/Down will switch one up or one down.\n\n" +
-						"Ctrl + Left/Right will change the current page on the selected tab.\n\n" +
+						"Ctrl + [Up/Down] will switch one up or one down.\n\n" +
+						"Ctrl + [Left/Right] will change the current page on the selected tab.\n\n" +
+						"Ctrl + [-/+] will change the DPI (image size) on the selected tab.\n\n" +
 						"Ctrl + c will clone the current tab and switch to the clone.\n\n" +
 						"Ctrl + r will bring up the rename prompt\n\n" +
 						"Ctrl + g will focus the page num text field and clear it, so a new page can be entered.\n\n" +
+						"Ctrl + o will bring up a prompt to change the current tab's position, moving it higher/lower in the list.\n\n" +
 						"Tip: The PageNum and DPI textboxes may block shortcuts when active. Click outside of them to break focus";
 				JOptionPane.showMessageDialog(null, message, "Keyboard Shortcuts", JOptionPane.INFORMATION_MESSAGE);
 			}
