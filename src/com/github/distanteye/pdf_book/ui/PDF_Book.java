@@ -7,14 +7,12 @@ import java.awt.ComponentOrientation;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.HeadlessException;
-import java.awt.Point;
-import java.awt.Rectangle;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.io.DataInputStream;
 import java.io.File;
@@ -41,9 +39,7 @@ import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JViewport;
 import javax.swing.KeyStroke;
-import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.JTextComponent;
 
@@ -97,6 +93,8 @@ public class PDF_Book implements UI {
 	// have it as part of the state allows for handling stuff like that
 	protected boolean fallBackActive; 
 	
+	protected boolean firstTabSwitch;
+	
 	// referential aids to keep code easily restructurable
 	protected GBagPanel tabPanel;
 	protected JScrollPane tabScroll;
@@ -122,6 +120,7 @@ public class PDF_Book implements UI {
 		
 		tabs = new ArrayList<Tab>();
 		selectedTab = -1; // unselected
+		firstTabSwitch = true; // will be unset after the first time
 
 		mainTextSize = 24;
 		defaultDPI = 128; // can be modified later
@@ -457,6 +456,7 @@ public class PDF_Book implements UI {
 			switchTab(0);
 		}
 
+		/*
 		if (optionalScroll != null) {
 			JScrollBar verticalBar = optionalScroll.getVerticalScrollBar();
 			verticalBar.setValue(verticalBar.getMaximum());
@@ -464,6 +464,7 @@ public class PDF_Book implements UI {
 			optionalScroll.repaint();
 
 		}
+		*/
 		
 		outputBox.repaint();					
 
@@ -507,10 +508,15 @@ public class PDF_Book implements UI {
 		{
 			tabButton.setToolTipText(tabName);
 		}
+				
 		
-		parent.addButton(x++, y, "##X").addActionListener(new TabRemoveListener(parent, tabIndex, leftScroll));
+		JButton renameButton = parent.addButton(x++, y, "Rename");
+		renameButton.setMargin(new Insets(0,0,0,0));
+		renameButton.addActionListener(new TabRenameListener(tab, parent, leftScroll));
 		
-		parent.addButton(x++, y, "##Save").addActionListener(new TabRenameListener(tab, parent, leftScroll));
+		JButton removeButton = parent.addButton(x++, y, "X");
+		removeButton.setMargin(new Insets(0,0,0,0));
+		removeButton.addActionListener(new TabRemoveListener(parent, tabIndex, leftScroll));
 		
 		//parent.endRow(x, y);
 		
@@ -779,10 +785,16 @@ public class PDF_Book implements UI {
 					selectedTab = 0;
 				}
 				
-				int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
-				int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
-				tabs.get(selectedTab).setScrollPositionX(oldScrollX);
-				tabs.get(selectedTab).setScrollPositionY(oldScrollY);										
+				if (!firstTabSwitch) {
+					int oldScrollX = mainScroll.getHorizontalScrollBar().getValue();
+					int oldScrollY = mainScroll.getVerticalScrollBar().getValue();
+					tabs.get(selectedTab).setScrollPositionX(oldScrollX);
+					tabs.get(selectedTab).setScrollPositionY(oldScrollY);
+				}
+				else
+				{
+					firstTabSwitch = false;
+				}
 				
 				CardLayout cLayout = (CardLayout) outputBox.getLayout();
 				cLayout.show(outputBox, ""+idx);
@@ -851,13 +863,24 @@ public class PDF_Book implements UI {
 		Element tabs = new Element("Tabs");
 
 		for (Tab t : this.tabs) {
+			
+			int scrollPositionX = t.getScrollPositionX();
+			int scrollPositionY = t.getScrollPositionY();
+			
+			// extra checks to make sure we get most up to date data from the currently selected tab
+			if (t.equals(this.tabs.get(selectedTab)))
+			{
+				scrollPositionX = mainScroll.getHorizontalScrollBar().getValue();
+				scrollPositionY = mainScroll.getVerticalScrollBar().getValue();
+			}
+			
 			Element tab = new Element("Tab");
 			tab.addContent(new Element("DisplayName").setText(t.getDisplayName()));
 			tab.addContent(new Element("FilePath").setText("" + t.getFilePath()));
 			tab.addContent(new Element("Page").setText("" + t.getCurrentPage()));
 			tab.addContent(new Element("DPI").setText("" + t.getDpi()));
-			tab.addContent(new Element("ScrollX").setText("" + t.getScrollPositionX()));
-			tab.addContent(new Element("ScrollY").setText("" + t.getScrollPositionY()));
+			tab.addContent(new Element("ScrollX").setText("" + scrollPositionX));
+			tab.addContent(new Element("ScrollY").setText("" + scrollPositionY));
 
 			tabs.addContent(tab);
 		}
@@ -884,7 +907,7 @@ public class PDF_Book implements UI {
 	 *            a validly formatted XML string as returned by getXML()
 	 */
 	public void loadXML(String xml) {
-		// this.setToDefaults();
+		// this.setToDefaults();		
 
 		Document document = Utils.getXMLDoc(xml);
 
@@ -914,6 +937,7 @@ public class PDF_Book implements UI {
 		Utils.verifyChildren(tabs, new String[] { "Tab" });	
 
 		this.tabs.clear();
+		firstTabSwitch = true; // need to reset this flag
 
 		for (Element e : tabs.getChildren()) {
 			if (e.getName().equals("Tab")) {
