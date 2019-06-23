@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.ComponentOrientation;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.HeadlessException;
@@ -14,6 +15,8 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -23,6 +26,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.AbstractAction;
 import javax.swing.JButton;
@@ -39,7 +44,9 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.ProgressMonitor;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.JTextComponent;
 
@@ -98,6 +105,8 @@ public class PDF_Book implements UI {
 	// referential aids to keep code easily restructurable
 	protected GBagPanel tabPanel;
 	protected JScrollPane tabScroll;
+	
+	protected ProgressMonitor progressMonitor;
 
 	/**
 	 * Creates and initializes the UI, setting up the full layout
@@ -584,7 +593,15 @@ public class PDF_Book implements UI {
 	public void end() {
 		// No ending logic needed
 
-	}	
+	}
+	
+	/**
+	 * Should reset the UI to a clean state
+	 */
+	public void reset() {
+		tabs.clear();
+		firstTabSwitch = true; // need to reset this flag
+	}
 	
 	public void switchTab(int idx)
 	{
@@ -728,111 +745,187 @@ public class PDF_Book implements UI {
 	 *            a validly formatted XML string as returned by getXML()
 	 */
 	public void loadXML(String xml) {
+		reset();
+		
 		// this.setToDefaults();		
-
-		Document document = Utils.getXMLDoc(xml);
-
-		Element root = document.getRootElement();
-
-		Utils.verifyTag(root, "Book");
-		Utils.verifyChildren(root, new String[] { "BookSettings", "Tabs" });
-
-		Element tabSettings = root.getChild("BookSettings");
-		Utils.verifyChildren(tabSettings,
-				new String[] { "DefaultDPI", "CurrentTab", "ScrollMaxX", "ScrollMaxY" });
-		if (!Utils.isInteger(tabSettings.getChildText("DefaultDPI"))) {
-			handleError("Load error : DefaultDPI isn't a number");
-			return;
-		} else {
-			this.defaultDPI = Integer.parseInt(tabSettings.getChildText("DefaultDPI"));
-		}
+		progressMonitor = new ProgressMonitor(mainPanel, "", "", 0, 100);
+		progressMonitor.setProgress(0);
+		progressMonitor.setMillisToDecideToPopup(2);
+		progressMonitor.setMillisToPopup(2);
 		
-		if (!Utils.isInteger(tabSettings.getChildText("CurrentTab"))) {
-			handleError("Load error : CurrentTab isn't a number");
-			return;
-		} else {
-			this.selectedTab = Integer.parseInt(tabSettings.getChildText("CurrentTab"));
-		}
-		
-		if (!Utils.isInteger(tabSettings.getChildText("ScrollMaxX"))) {
-			handleError("Load error : ScrollMaxX isn't a number");
-			return;
-		} else {
-			int scrollMaxX = Integer.parseInt(tabSettings.getChildText("ScrollMaxX"));
-			mainScroll.getHorizontalScrollBar().setMaximum(scrollMaxX);
-		}
-		
-		if (!Utils.isInteger(tabSettings.getChildText("ScrollMaxY"))) {
-			handleError("Load error : ScrollMaxY isn't a number");
-			return;
-		} else {
-			int scrollMaxY = Integer.parseInt(tabSettings.getChildText("ScrollMaxY"));
-			mainScroll.getVerticalScrollBar().setMaximum(scrollMaxY);
-		}
-
-		Element tabs = root.getChild("Tabs");
-		Utils.verifyChildren(tabs, new String[] { "Tab" });	
-
-		this.tabs.clear();
-		firstTabSwitch = true; // need to reset this flag
-
-		for (Element e : tabs.getChildren()) {
-			if (e.getName().equals("Tab")) {
-				Utils.verifyChildren(e,
-						new String[] { "DisplayName", "FilePath", "Page", "DPI", "ScrollX", "ScrollY" });
-
-				String displayName = e.getChildText("DisplayName");
-				String filePath = e.getChildText("FilePath");
-				
-				int page = 0;
-				if (!Utils.isInteger(e.getChildText("Page"))) {
-					handleError("Load error : Page isn't a number");
-					return;
-				} else {
-					page = Integer.parseInt(e.getChildText("Page"));
-				}
-				
-				int dpi = 0;
-				if (!Utils.isInteger(e.getChildText("DPI"))) {
-					handleError("Load error : DPI isn't a number");
-					return;
-				} else {
-					dpi = Integer.parseInt(e.getChildText("DPI"));
-				}
-				
-				int scrollX = 0;
-				if (!Utils.isInteger(e.getChildText("ScrollX"))) {
-					handleError("Load error : ScrollX isn't a number");
-					return;
-				} else {
-					scrollX = Integer.parseInt(e.getChildText("ScrollX"));
-				}
-				
-				int scrollY = 0;
-				if (!Utils.isInteger(e.getChildText("ScrollY"))) {
-					handleError("Load error : ScrollY isn't a number");
-					return;
-				} else {
-					scrollY = Integer.parseInt(e.getChildText("ScrollY"));
-				}
-				
-				
-				try {
-					Tab t = new Tab(displayName, filePath, page, dpi, renderer);
-					t.setScrollPositionX(scrollX);
-					t.setScrollPositionY(scrollY);
-					this.tabs.add(t);
-				} catch (InvalidPasswordException e1) {
-					handleError("Load error: " + e1.getMessage());
-				} catch (IOException e1) {
-					handleError("Load error: " + e1.getMessage());
-				}	
-			}
-		}
-
-		renderTabBar(leftPanel, 0, leftScroll);
-		update();
+		LoadTask task = new LoadTask(xml);
+		task.addPropertyChangeListener(new LoadTaskListener(task));
+		task.execute();
 	}
+	
+	private class LoadTask extends SwingWorker<Void, Void> {
+		private String xml;
+		private boolean abortExec;
+		
+		public LoadTask(String xml)
+		{
+			this.xml = xml;
+			this.abortExec = false;
+		}
+		
+        // Doesn't occur on the Swing Graphical Thread
+        @Override
+        public Void doInBackground() {
+        	Document document = Utils.getXMLDoc(xml);
+
+    		Element root = document.getRootElement();
+
+    		Utils.verifyTag(root, "Book");
+    		Utils.verifyChildren(root, new String[] { "BookSettings", "Tabs" });
+
+    		Element tabSettings = root.getChild("BookSettings");
+    		Utils.verifyChildren(tabSettings,
+    				new String[] { "DefaultDPI", "CurrentTab", "ScrollMaxX", "ScrollMaxY" });
+    		if (!Utils.isInteger(tabSettings.getChildText("DefaultDPI"))) {
+    			throw new IllegalArgumentException("Load error : DefaultDPI isn't a number");
+    		} else {
+    			defaultDPI = Integer.parseInt(tabSettings.getChildText("DefaultDPI"));
+    		}
+    		
+    		if (!Utils.isInteger(tabSettings.getChildText("CurrentTab"))) {
+    			throw new IllegalArgumentException("Load error : CurrentTab isn't a number");
+    		} else {
+    			selectedTab = Integer.parseInt(tabSettings.getChildText("CurrentTab"));
+    		}
+    		
+    		if (!Utils.isInteger(tabSettings.getChildText("ScrollMaxX"))) {
+    			throw new IllegalArgumentException("Load error : ScrollMaxX isn't a number");
+    		} else {
+    			int scrollMaxX = Integer.parseInt(tabSettings.getChildText("ScrollMaxX"));
+    			mainScroll.getHorizontalScrollBar().setMaximum(scrollMaxX);
+    		}
+    		
+    		if (!Utils.isInteger(tabSettings.getChildText("ScrollMaxY"))) {
+    			throw new IllegalArgumentException("Load error : ScrollMaxY isn't a number");
+    		} else {
+    			int scrollMaxY = Integer.parseInt(tabSettings.getChildText("ScrollMaxY"));
+    			mainScroll.getVerticalScrollBar().setMaximum(scrollMaxY);
+    		}
+
+    		Element tabsXML = root.getChild("Tabs");
+    		Utils.verifyChildren(tabsXML, new String[] { "Tab" });	    		
+
+    		int currentProgress = 1;
+    		setProgress(currentProgress);
+    		int numTabs = tabsXML.getChildren().size();
+    		int progressEach = 99/numTabs;
+    		
+    		
+    		for (Element e : tabsXML.getChildren()) {
+    			// another hard catch to prevent execution after a stop is called for
+    			if (abortExec) {
+    				return null;
+    			}
+    			
+    			if (e.getName().equals("Tab")) {
+    				Utils.verifyChildren(e,
+    						new String[] { "DisplayName", "FilePath", "Page", "DPI", "ScrollX", "ScrollY" });
+
+    				String displayName = e.getChildText("DisplayName");
+    				String filePath = e.getChildText("FilePath");
+    				
+    				int page = 0;
+    				if (!Utils.isInteger(e.getChildText("Page"))) {
+    					throw new IllegalArgumentException("Load error : Page isn't a number");    					
+    				} else {
+    					page = Integer.parseInt(e.getChildText("Page"));
+    				}
+    				
+    				int dpi = 0;
+    				if (!Utils.isInteger(e.getChildText("DPI"))) {
+    					throw new IllegalArgumentException("Load error : DPI isn't a number");
+    				} else {
+    					dpi = Integer.parseInt(e.getChildText("DPI"));
+    				}
+    				
+    				int scrollX = 0;
+    				if (!Utils.isInteger(e.getChildText("ScrollX"))) {
+    					throw new IllegalArgumentException("Load error : ScrollX isn't a number");
+    				} else {
+    					scrollX = Integer.parseInt(e.getChildText("ScrollX"));
+    				}
+    				
+    				int scrollY = 0;
+    				if (!Utils.isInteger(e.getChildText("ScrollY"))) {
+    					throw new IllegalArgumentException("Load error : ScrollY isn't a number");
+    				} else {
+    					scrollY = Integer.parseInt(e.getChildText("ScrollY"));
+    				}
+    				
+    				
+    				try {
+    					Tab t = new Tab(displayName, filePath, page, dpi, renderer);
+    					t.setScrollPositionX(scrollX);
+    					t.setScrollPositionY(scrollY);
+    					tabs.add(t);
+    				} catch (InvalidPasswordException e1) {
+    					throw new IllegalArgumentException("Load error: " + e1.getMessage());
+    				} catch (IOException e1) {
+    					throw new IllegalArgumentException("Load error: " + e1.getMessage());
+    				}	
+    			}
+    			
+    			currentProgress += progressEach;
+    			setProgress(currentProgress);
+    		}
+        	
+            return null;
+        }
+ 
+        // occurs on the Swing Graphical Thread
+        @Override
+        public void done() {
+        	try {
+        		get();
+        	}
+        	catch( CancellationException e) 
+        	{
+        		abortExec = true;
+        		handleError("Load canceled.");
+        		return;
+        	}
+        	catch (ExecutionException | InterruptedException e) {
+        		handleError(e.getMessage());
+        		reset();
+        		return;
+        	}
+        	
+        	renderTabBar(leftPanel, 0, leftScroll);
+    		update();
+    		
+    		progressMonitor.close();
+        }
+    }	
+	
+	private class LoadTaskListener implements PropertyChangeListener {
+		private LoadTask task;
+		
+		public LoadTaskListener(LoadTask task) {
+			this.task = task;
+		}
+		
+		@Override
+		public void propertyChange(PropertyChangeEvent evt) {
+			if ("progress" == evt.getPropertyName() ) {
+	            int progress = (int) evt.getNewValue();
+	            progressMonitor.setProgress(progress);
+	            String message = String.format("Loaded %d%%.\n", progress);
+	            progressMonitor.setNote(message);
+	            
+	            if (progressMonitor.isCanceled())
+	            {
+	            	task.cancel(true);
+	            	reset();	            	
+	            }	            
+	        }
+		}
+	}
+	
 
 	public void save(String fileName) {
 		try {
@@ -960,6 +1053,9 @@ public class PDF_Book implements UI {
 			if (returnVal == JFileChooser.APPROVE_OPTION) {
 				String filePath = chooser.getSelectedFile().getAbsolutePath();
 				
+				Cursor old = mainWindow.getCursor();
+				mainWindow.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+				
 				try {
 					tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
 				} catch (InvalidPasswordException e1) {
@@ -969,6 +1065,8 @@ public class PDF_Book implements UI {
 				}
 				renderTabBar(parent, 0, scroll);
 				switchTab(tabs.size()-1);
+				
+				mainWindow.setCursor(old);
 			}				
 		}
 	}
