@@ -392,7 +392,7 @@ public class PDF_Book implements UI {
 		
 		// put a header for the thing selected
 		parent.setNextGridWidth(5);
-		parent.addLabel(0, 0, "-> " + displayName);
+		parent.addLabel(0, 0, (selectedTab+1) + ". " + displayName);
 		
 		parent.addLabel(1, 1, "Page ("+pageNum+"/"+maxPages+")");
 		JTextField pageNumF = parent.addMappedTF(nf, 1, 2, "", "currTabPageNum", 4, ""+pageNum, null, null, new TabPageNumWrapper(activeTab));
