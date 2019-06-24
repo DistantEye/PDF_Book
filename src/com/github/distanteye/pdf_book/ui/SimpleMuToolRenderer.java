@@ -6,10 +6,11 @@ package com.github.distanteye.pdf_book.ui;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -43,10 +44,13 @@ public class SimpleMuToolRenderer extends ImageRenderer {
 		
 		for (File f : contents)
 		{
-			paths.add(f.getName());
+			if (f.isFile())
+			{
+				paths.add(f.getName());
+			}
 		}
 		
-		return (paths.contains("mutool.exe") || paths.contains("mutool")) && paths.contains("pageCount.js");
+		return paths.contains("mutool.exe") || paths.contains("mutool");
 
 	}
 	
@@ -137,6 +141,8 @@ public class SimpleMuToolRenderer extends ImageRenderer {
 
 	public int getPageCount(Tab t)
 	{
+		long startTime = System.nanoTime();
+		
 		int pageCount = super.getPageCount(t);
 		
 		if (pageCount != -1)
@@ -146,34 +152,38 @@ public class SimpleMuToolRenderer extends ImageRenderer {
 		
 		String filePath = t.getFilePath();
 		File rootDir = new File("./external");
-		BufferedInputStream output = null;
+
+		ProcessBuilder pb = new ProcessBuilder("./external/mutool", "show", filePath, "pages");	
+		pb.directory(rootDir);
 		
-		ProcessBuilder pb = new ProcessBuilder("./external/mutool", "run", "pageCount.js", filePath);	
-		pb.directory(rootDir);		
+		String lastLine = "";
+		
 		try {
 			Process p = pb.start();
-			output = new BufferedInputStream(p.getInputStream());
+			BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+			
+			String newLine;
+			while((newLine = reader.readLine()) != null) {				
+				if (newLine.startsWith("page"))
+				{
+					lastLine = newLine;
+				}
+			}
+			
 			p.waitFor();
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
 			return -1;
 		}
 		
-		String outputStr = "";
-		try {
-			int length = output.available();
-			byte[] parsedOutput = new byte[length];
-			output.read(parsedOutput);
-			output.close();
-			
-			outputStr = new String(parsedOutput, "US-ASCII");
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			return -1;
-		}
+		lastLine = lastLine.replaceFirst("page ", "");
+		String outputStr = lastLine.substring(0, lastLine.indexOf(" = "));
 			
 		pageCount = Integer.parseInt(outputStr.trim());
+		
+		long endTime = System.nanoTime();
+		double duration = (endTime - startTime)/1000000;
+		System.out.println("Found maxPages of " + t.getDisplayName() + "(" + pageCount + ")" +  "in " + duration + " milliseconds");
 		
 		return pageCount;		
 	}

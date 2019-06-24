@@ -21,9 +21,21 @@ Configurable tabbed PDF viewer meant for managing a stack of open reference mate
 
 PDF_Book ships with an integrated PDF Renderer (via Apache PDF Box). This is however, for many use cases, insufficient : it uses up an incredible amount of memory and runs very slowly on complex PDFs.
 
-As a preferred alternative, the program will attempt to look for the presence of MuPDF's commandline tool on startup, and switch to using that if possible. Obtain the appropriate mutool executable from your OS's appropriate package manager (or https://mupdf.com/ ) and copy or symbolic link mutool to ./external/mutool in the project directory.
+As a preferred alternative, the program will attempt to look for the presence of MuPDF's commandline tool on startup, and switch to using that if possible. Obtain the appropriate mutool executable from your OS's appropriate package manager (or https://mupdf.com/ ) and copy or symbolic link mutool to ./external/mutool.exe  in the project directory. For non-windows this may be just ./external/mutool . The important thing is to place only the mutool executable in the folder.
 
 Since mutool is the preferred renderer, the UI will display a warning message in the menu bar if it was unable to find the external renderer. It'll always be non-ambiguous whether PDF_Book managed to successfully connect to the external executable or not.
+
+### If you're having trouble :
+
+note your folder should look like this, dependant on OS:
+
+#### Windows
+
+[PDF_Book_Folder]\external\mutool.exe
+
+#### Non-Windows
+
+[PDF_Book_Folder]/external/mutool
 
 ## Dev Install Notes
 

@@ -1053,27 +1053,49 @@ public class PDF_Book implements UI {
 			JFileChooser chooser = new JFileChooser(System.getProperty("user.dir"));
 			FileNameExtensionFilter filter = new FileNameExtensionFilter("PDF Documents", "pdf");
 			chooser.setFileFilter(filter);
+			chooser.setMultiSelectionEnabled(true);
 			int returnVal = chooser.showOpenDialog(mainWindow);
 			
 			if (returnVal == JFileChooser.APPROVE_OPTION) {
-				String filePath = chooser.getSelectedFile().getAbsolutePath();
+				File[] files = chooser.getSelectedFiles();
 				
 				Cursor old = mainWindow.getCursor();
 				mainWindow.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 				
-				try {
-					tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
-				} catch (InvalidPasswordException e1) {
-					handleError(e1.getMessage());
-				} catch (IOException e1) {
-					handleError(e1.getMessage());
+				if (files.length == 1)
+				{
+					String filePath = files[0].getAbsolutePath();
+					openFile(filePath);
 				}
+				else
+				{
+					for (int x = files.length-1; x >= 0; x--)
+					{
+						String filePath = files[x].getAbsolutePath();
+						openFile(filePath);
+					}
+				}
+				
 				renderTabBar(parent, 0, scroll);
 				switchTab(tabs.size()-1);
-				
 				mainWindow.setCursor(old);
 			}				
 		}
+		
+		protected void openFile(String filePath)
+		{
+			
+			try {
+				tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
+			} catch (InvalidPasswordException e1) {
+				handleError(e1.getMessage());
+			} catch (IOException e1) {
+				handleError(e1.getMessage());
+			}
+			
+		}
+		
+		
 	}
 	
 	private class TabCloneListener implements ActionListener {
@@ -1315,10 +1337,10 @@ public class PDF_Book implements UI {
 					dialogType = JOptionPane.INFORMATION_MESSAGE;
 				}
 				
-				String message = "PDF Book looks for the presence of /external/mutool for the primary PDF Rendering engine.\n\n" +
+				String message = "PDF Book looks for the presence of /external/mutool.exe or /external/mutool (linux) for the primary PDF Rendering engine.\n\n" +
 									"Obtain the appropriate executable from https://mupdf.com/ and copy or symbolic link it to that location.\n\n" +
-									"The fallback renderer will not be able to open all PDFs, is slower, and consumes a great deal of memory.\n\n" +
-									"( /external/pageCount.js also needs to be present but this is there by default unless the user removes it )";
+									"Consult README.md if any unexpected problems occur.\n\n" +
+									"The fallback renderer will not be able to open all PDFs, is slower, and consumes a great deal of memory.";
 				
 				// we use a text box so the text (particularly the url) becomes selectable
 				JTextArea textBox = new JTextArea(message,8,52);              
