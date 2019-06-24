@@ -27,15 +27,19 @@ Since mutool is the preferred renderer, the UI will display a warning message in
 
 ### If you're having trouble :
 
-note your folder should look like this, dependant on OS:
+mutool has to be installed when PDF_Book is NOT running. Restart if needed.
+
+Your folder should look like this, dependant on OS:
 
 #### Windows
 
 [PDF_Book_Folder]\external\mutool.exe
+[PDF_Book_Folder]\external\place_mutool_here.txt
 
 #### Non-Windows
 
 [PDF_Book_Folder]/external/mutool
+[PDF_Book_Folder]/external/place_mutool_here.txt
 
 ## Dev Install Notes
 

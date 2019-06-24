@@ -13,6 +13,7 @@ import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 
 import com.github.distanteye.pdf_book.ui_helpers.DataManager;
+import com.github.distanteye.pdf_book.ui_helpers.HandledUIException;
 import com.github.distanteye.pdf_book.ui_helpers.ImageRenderer;
 
 /**
@@ -61,10 +62,10 @@ public class PdfBoxRenderer extends ImageRenderer {
 				
 			} catch (InvalidPasswordException e) {
 				e.printStackTrace();
-				return null;
+				throw new HandledUIException(e.getMessage());
 			} catch (IOException e) {
 				e.printStackTrace();
-				return null;
+				throw new HandledUIException(e.getMessage());
 			}				
 		
 		}

@@ -869,10 +869,12 @@ public class PDF_Book implements UI {
     					t.setScrollPositionY(scrollY);
     					tabs.add(t);
     				} catch (InvalidPasswordException e1) {
-    					throw new IllegalArgumentException("Load error: " + e1.getMessage());
+    					throw new IllegalArgumentException("Load error (" + displayName + "): " + e1.getMessage());
     				} catch (IOException e1) {
-    					throw new IllegalArgumentException("Load error: " + e1.getMessage());
-    				}	
+    					throw new IllegalArgumentException("Load error (" + displayName + "): " + e1.getMessage());
+    				} catch (HandledUIException e1) {
+    					handleError("Error loading (" + displayName + "): " + e1.getMessage());
+    				}
     			}
     			
     			currentProgress += progressEach;
@@ -894,7 +896,7 @@ public class PDF_Book implements UI {
         		handleError("Load canceled.");
         		return;
         	}
-        	catch (ExecutionException | InterruptedException e) {
+        	catch (ExecutionException | InterruptedException | HandledUIException e ) {
         		handleError(e.getMessage());
         		reset();
         		return;
@@ -1088,9 +1090,11 @@ public class PDF_Book implements UI {
 			try {
 				tabs.add(new Tab(filePath, filePath, 1, defaultDPI, renderer));
 			} catch (InvalidPasswordException e1) {
-				handleError(e1.getMessage());
+				handleError("Load error (" + filePath + "): " +e1.getMessage());
 			} catch (IOException e1) {
-				handleError(e1.getMessage());
+				handleError("Load error (" + filePath + "): " +e1.getMessage());
+			} catch (HandledUIException e1) {
+				handleError("Load error (" + filePath + "): " +e1.getMessage());
 			}
 			
 		}
@@ -1126,10 +1130,13 @@ public class PDF_Book implements UI {
 				tabs.add(origPosition+1, t);
 				
 			} catch (InvalidPasswordException e1) {
-				handleError(e1.getMessage());
+				handleError("Error loading (" + orig.getDisplayName() + "): " + e1.getMessage());
 			} catch (IOException e1) {
-				handleError(e1.getMessage());
+				handleError("Error loading (" + orig.getDisplayName() + "): " + e1.getMessage());
+			} catch (HandledUIException e1) {
+				handleError("Error loading (" + orig.getDisplayName() + "): " + e1.getMessage());
 			}
+			
 			renderTabBar(parent, 0, scroll);
 			switchTab(origPosition+1);			
 		}

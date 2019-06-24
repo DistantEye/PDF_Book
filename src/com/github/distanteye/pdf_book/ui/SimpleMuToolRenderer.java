@@ -13,10 +13,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.PatternSyntaxException;
 
 import javax.imageio.ImageIO;
 
 import com.github.distanteye.pdf_book.ui_helpers.DataManager;
+import com.github.distanteye.pdf_book.ui_helpers.HandledUIException;
 import com.github.distanteye.pdf_book.ui_helpers.ImageRenderer;
 import com.github.distanteye.pdf_book.ui_helpers.MappedByteBufferDataManager;
 
@@ -52,26 +54,6 @@ public class SimpleMuToolRenderer extends ImageRenderer {
 		
 		return paths.contains("mutool.exe") || paths.contains("mutool");
 
-	}
-	
-	public void nullBombStream(InputStream s)
-	{
-		Thread separateThread = new Thread()
-		{
-			public void run() {
-		        try {
-					while (s.available() > 0)
-					{
-						s.read();
-					}
-				} catch (IOException e) {					
-					e.printStackTrace();
-					return;
-				}
-		    }  
-		};
-		
-		separateThread.run();
 	}
 	
 	/* (non-Javadoc)
@@ -115,7 +97,7 @@ public class SimpleMuToolRenderer extends ImageRenderer {
 				p.waitFor(1,TimeUnit.SECONDS); // because of the above read this should resolve near immediately, so we have a short timeout
 			} catch (IOException | InterruptedException e) {
 				e.printStackTrace();
-				return null;
+				throw new HandledUIException(e.getMessage());
 			}
 		
 		}
@@ -173,13 +155,20 @@ public class SimpleMuToolRenderer extends ImageRenderer {
 			p.waitFor();
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
-			return -1;
+			throw new HandledUIException(e.getMessage());
 		}
 		
-		lastLine = lastLine.replaceFirst("page ", "");
-		String outputStr = lastLine.substring(0, lastLine.indexOf(" = "));
-			
-		pageCount = Integer.parseInt(outputStr.trim());
+		
+		try {
+			lastLine = lastLine.replaceFirst("page ", "");
+			String outputStr = lastLine.substring(0, lastLine.indexOf(" = "));
+					
+			pageCount = Integer.parseInt(outputStr.trim());
+		}
+		catch(PatternSyntaxException | StringIndexOutOfBoundsException | NumberFormatException e )
+		{
+			throw new HandledUIException("Error getting PageCount: " + e.getMessage());
+		}
 		
 		long endTime = System.nanoTime();
 		double duration = (endTime - startTime)/1000000;
