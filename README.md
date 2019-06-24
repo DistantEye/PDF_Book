@@ -8,7 +8,7 @@ Configurable tabbed PDF viewer meant for managing a stack of open reference mate
 
 * Tab names can be renamed to whatever you like
 
-* Everything that can be remembered between tab switches is:
+* Everything that can be remembered between tab switches is remembered:
 	* Page number
 	* Zoom size
 	* Exact position of scrollbar
