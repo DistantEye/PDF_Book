@@ -19,7 +19,7 @@ import com.github.distanteye.pdf_book.ui_helpers.ImageRenderer;
  * @author Vigilant
  *
  */
-public class PdfBoxRenderer implements ImageRenderer {
+public class PdfBoxRenderer extends ImageRenderer {
 
 	private DataManager dm;
 	
@@ -27,6 +27,7 @@ public class PdfBoxRenderer implements ImageRenderer {
 	 * 
 	 */
 	public PdfBoxRenderer(DataManager dm) {
+		super();
 		this.dm = dm;
 	}
 
@@ -41,28 +42,37 @@ public class PdfBoxRenderer implements ImageRenderer {
 	public BufferedImage renderPDF(Tab t, int page, int dpi) {
 		long startTime = System.nanoTime();
 		
-		BufferedImage currentLoadedImage = null;
+		BufferedImage currentLoadedImage = getCachedImage(t);
+		int pageCount = getPageCount(t);
 		
-		// load PDF document
-		PDDocument document;
-		try {
-			document = PDDocument.load(dm.checkOut(t));
-		
-			PDFRenderer pdfRenderer = new PDFRenderer(document);
-			currentLoadedImage = pdfRenderer.renderImageWithDPI(page-1, t.getDpi(), ImageType.RGB);		
-			t.setMaxPages(document.getNumberOfPages());
-			t.setPreferredSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
-			t.setMaximumSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
-	
-			document.close();
+		// cache hit lets us skip some of these steps, otherwise we have to do actual rendering below
+		if (currentLoadedImage == null) 
+		{		
+			// load PDF document
+			PDDocument document;
+			try {
+				document = PDDocument.load(dm.checkOut(t));
 			
-		} catch (InvalidPasswordException e) {
-			e.printStackTrace();
-			return null;
-		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
+				PDFRenderer pdfRenderer = new PDFRenderer(document);
+				currentLoadedImage = pdfRenderer.renderImageWithDPI(page-1, t.getDpi(), ImageType.RGB);		
+				pageCount = document.getNumberOfPages();
+		
+				document.close();
+				
+			} catch (InvalidPasswordException e) {
+				e.printStackTrace();
+				return null;
+			} catch (IOException e) {
+				e.printStackTrace();
+				return null;
+			}				
+		
 		}
+		
+		setPageCount(t, pageCount);
+		t.setPreferredSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
+		t.setMaximumSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
+		checkInImage(t, currentLoadedImage);
 		
 		long endTime = System.nanoTime();
 		double duration = (endTime - startTime)/1000000;
@@ -73,6 +83,7 @@ public class PdfBoxRenderer implements ImageRenderer {
 
 	@Override
 	public void closeOutTabInfo(Tab t) {
+		super.closeOutTabInfo(t);
 		dm.checkIn(t);
 	}
 

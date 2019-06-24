@@ -105,6 +105,10 @@ public class Tab extends JPanel {
 	
 	protected void recalculatePage() 
 	{
+		// assumption (because of mutator controls) is whenever recalculatePage is called, previous page is no longer active
+		// and should be checked out of renderer
+		renderer.clearOutCurrentTabPage(this);
+		
 		currentLoadedImage = renderer.renderPDF(this, getCurrentPage(), getDpi());
 		
 		repaint();

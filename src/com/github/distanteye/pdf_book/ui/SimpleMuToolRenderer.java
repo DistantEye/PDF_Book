@@ -9,7 +9,9 @@ import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
 
@@ -21,7 +23,7 @@ import com.github.distanteye.pdf_book.ui_helpers.MappedByteBufferDataManager;
  * @author Vigilant
  *
  */
-public class SimpleMuToolRenderer implements ImageRenderer {
+public class SimpleMuToolRenderer extends ImageRenderer {
 
 	private DataManager dm;
 	
@@ -29,6 +31,7 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 	 * 
 	 */
 	public SimpleMuToolRenderer() {
+		super();
 		dm = new MappedByteBufferDataManager();
 	}
 
@@ -47,6 +50,26 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 
 	}
 	
+	public void nullBombStream(InputStream s)
+	{
+		Thread separateThread = new Thread()
+		{
+			public void run() {
+		        try {
+					while (s.available() > 0)
+					{
+						s.read();
+					}
+				} catch (IOException e) {					
+					e.printStackTrace();
+					return;
+				}
+		    }  
+		};
+		
+		separateThread.run();
+	}
+	
 	/* (non-Javadoc)
 	 * @see com.github.distanteye.pdf_book.ui.ImageRenderer#renderPDF(java.lang.String, int, int)
 	 */
@@ -62,25 +85,41 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 		
 		long startTime = System.nanoTime();
 		File rootDir = new File("./external");
-
-		BufferedImage currentLoadedImage = null;
 		
-		setPageCount(t);
+		BufferedImage currentLoadedImage = getCachedImage(t);
 		
-		ProcessBuilder pb = new ProcessBuilder("./external/mutool", "draw", "-F","png", "-o","-", "-r", ""+dpi, t.getFilePath(), ""+page);	
-		pb.directory(rootDir);
-
-		try {
-			Process p = pb.start();
-			currentLoadedImage = ImageIO.read(p.getInputStream());
-			p.waitFor(); // because of the above read this should resolve near immediately
-		} catch (IOException | InterruptedException e) {
-			e.printStackTrace();
-			return null;
+		// credit to https://stackoverflow.com/a/55629297 for how to get access to null
+		File NULL_FILE = new File(
+		          (System.getProperty("os.name")
+		                     .startsWith("Windows") ? "NUL" : "/dev/null")
+		   );
+			
+		// cache hit lets us skip some of these steps, otherwise we have to do actual rendering below
+		if (currentLoadedImage == null)
+		{
+			
+			ProcessBuilder pb = new ProcessBuilder("./external/mutool", "draw", "-F","png", "-o","-", "-r", ""+dpi, t.getFilePath(), ""+page);	
+			pb.directory(rootDir);
+			
+			// Some mangled PDFs can generate a storm of error messages that blocks the buffer (even when we're not reading stderr...)
+			// so we route stderr to null for extra safety
+			pb.redirectError(NULL_FILE); 
+			
+			try {
+				Process p = pb.start();				
+				currentLoadedImage = ImageIO.read(p.getInputStream());
+				p.waitFor(1,TimeUnit.SECONDS); // because of the above read this should resolve near immediately, so we have a short timeout
+			} catch (IOException | InterruptedException e) {
+				e.printStackTrace();
+				return null;
+			}
+		
 		}
 		
+		setPageCount(t, getPageCount(t));
 		t.setPreferredSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
 		t.setMaximumSize(new Dimension(currentLoadedImage.getWidth(), currentLoadedImage.getHeight()));
+		checkInImage(t, currentLoadedImage);
 		
 		long endTime = System.nanoTime();
 		double duration = (endTime - startTime)/1000000;
@@ -91,15 +130,18 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 
 	@Override
 	public void closeOutTabInfo(Tab t) {
+		super.closeOutTabInfo(t);
 		// check back in to close out the memory mapped management
 		dm.checkIn(t);
 	}
 
-	protected void setPageCount(Tab t)
+	public int getPageCount(Tab t)
 	{
-		if (t.getMaxPages() != 0)
+		int pageCount = super.getPageCount(t);
+		
+		if (pageCount != -1)
 		{
-			return; // assume we never need to recalculate pages that were already set, PDFs should be static
+			return pageCount; 
 		}
 		
 		String filePath = t.getFilePath();
@@ -114,7 +156,7 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 			p.waitFor();
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
-			return;
+			return -1;
 		}
 		
 		String outputStr = "";
@@ -128,10 +170,12 @@ public class SimpleMuToolRenderer implements ImageRenderer {
 			
 		} catch (IOException e) {
 			e.printStackTrace();
-			return;
+			return -1;
 		}
 			
-		t.setMaxPages(Integer.parseInt(outputStr.trim()));
+		pageCount = Integer.parseInt(outputStr.trim());
 		
+		return pageCount;		
 	}
+	
 }
