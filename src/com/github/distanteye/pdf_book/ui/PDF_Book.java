@@ -159,6 +159,7 @@ public class PDF_Book implements UI {
 		controlPanelScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		controlPanelScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
 		controlPanelScroll.setPreferredSize(new Dimension(400, 150));
+		controlPanelScroll.setMinimumSize(new Dimension(400, 150));
 		
 		mainPanel.setNextWeights(1.0, 0.5);
 		mainPanel.addC(controlPanelScroll, 0, 0, 1, 1, GridBagConstraints.HORIZONTAL);	
