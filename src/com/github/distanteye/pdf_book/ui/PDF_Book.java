@@ -158,9 +158,10 @@ public class PDF_Book implements UI {
 		JScrollPane controlPanelScroll = new JScrollPane(controlPanel);
 		controlPanelScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		controlPanelScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+		controlPanelScroll.setPreferredSize(new Dimension(400, 150));
 		
 		mainPanel.setNextWeights(1.0, 0.5);
-		mainPanel.addC(controlPanelScroll, 0, 0, 1, 1, GridBagConstraints.BOTH);	
+		mainPanel.addC(controlPanelScroll, 0, 0, 1, 1, GridBagConstraints.HORIZONTAL);	
 		mainPanel.addSpecialChild(controlPanel);
 
 		// finish creating page controls
@@ -170,13 +171,14 @@ public class PDF_Book implements UI {
 		leftScroll = new JScrollPane(leftPanel);
 		leftScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		leftScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-		leftScroll.setPreferredSize(new Dimension(200, 650));
+		leftScroll.setPreferredSize(new Dimension(400, 400));
 		
 		// enable drag scrolling
 		MouseAdapter leftPanelMouseAdapter = new PanelMouseScroll(leftPanel);
 		leftPanel.addMouseListener(leftPanelMouseAdapter);
 		leftPanel.addMouseMotionListener(leftPanelMouseAdapter);
 		
+		mainPanel.setNextWeights(1.0, 100.0);
 		mainPanel.addC(leftScroll, 0, 1, GridBagConstraints.REMAINDER, 1, GridBagConstraints.BOTH);
 		mainPanel.addSpecialChild(leftPanel);
 		
@@ -186,11 +188,6 @@ public class PDF_Book implements UI {
 		// end bar
 
 		// setup menu -- this is done after left bar because of dependencies
-
-		mainWindow.setSize(1600, 900);
-
-		mainWindow.setVisible(true);
-		mainWindow.setExtendedState(mainWindow.getExtendedState() | JFrame.MAXIMIZED_BOTH);
 
 		save = new JMenuItem("Save Tabset");
 		load = new JMenuItem("Load Tabset");		
@@ -252,7 +249,7 @@ public class PDF_Book implements UI {
 		mainScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 		//mainScroll.setMinimumSize(mainOut.getPreferredSize());
 		
-		mainScroll.setPreferredSize(new Dimension(1300, 850));
+		mainScroll.setPreferredSize(new Dimension(1200, 850));
 		
 		// enable drag scrolling
 		MouseAdapter mouseAdapter = new PanelMouseScroll(outputBox);
@@ -261,11 +258,17 @@ public class PDF_Book implements UI {
         
         
 		// add mainScroll to window, then add mainPanel to that
-		mainPanel.addC(mainScroll, 1, 0, GridBagConstraints.REMAINDER, GridBagConstraints.REMAINDER,
-				GridBagConstraints.BOTH);
+        mainPanel.setNextWeights(20.0, 1.0); // the output box should gobble up most remaining space past preferred size
+		mainPanel.addC(mainScroll, 1, 0, GridBagConstraints.REMAINDER, GridBagConstraints.REMAINDER, GridBagConstraints.BOTH);
 		mainPanel.addSpecialChild(outputBox); // the scroll hides bottomPanel from being registered properly by the normal infrastructure
 
-				
+		
+		mainWindow.setSize(1600, 900);
+		mainWindow.pack();
+		
+		mainWindow.setVisible(true);
+		mainWindow.setExtendedState(mainWindow.getExtendedState() | JFrame.MAXIMIZED_BOTH);		
+		
 		renderTabBar(leftPanel, 0, leftScroll); // needs to be last
 
 	}
